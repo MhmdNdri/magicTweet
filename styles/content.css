@@ -1,0 +1,140 @@
+.magic-tweet-container {
+  position: absolute;
+  right: -320px;
+  top: 0;
+  width: 300px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  z-index: 1000;
+}
+
+.magic-tweet-header {
+  font-size: 16px;
+  font-weight: bold;
+  color: #1da1f2;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.magic-tweet-suggestions {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.magic-tweet-suggestion {
+  padding: 16px;
+  border-bottom: 1px solid #e1e8ed;
+}
+
+.magic-tweet-suggestion:last-child {
+  border-bottom: none;
+}
+
+.magic-tweet-tone {
+  font-weight: 600;
+  color: #1da1f2;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.magic-tweet-text {
+  font-size: 14px;
+  color: #14171a;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.magic-tweet-use {
+  background: #1da1f2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.magic-tweet-use:hover {
+  background: #1a91da;
+}
+
+/* Scrollbar styling */
+.magic-tweet-suggestions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.magic-tweet-suggestions::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.magic-tweet-suggestions::-webkit-scrollbar-thumb {
+  background: #1da1f2;
+  border-radius: 3px;
+}
+
+.magic-tweet-suggestions::-webkit-scrollbar-thumb:hover {
+  background: #1a91da;
+}
+
+.magic-tweet-variations {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.magic-tweet-variation {
+  padding: 8px;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  background: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.magic-tweet-variation .magic-tweet-text {
+  margin-bottom: 0;
+}
+
+.magic-tweet-variation .magic-tweet-use {
+  align-self: flex-end;
+}
+
+.magic-tweet-icon {
+  position: absolute;
+  right: -120px;
+  top: 10px;
+  cursor: pointer;
+  z-index: 999999;
+  background: #1da1f2;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
+  min-width: 100px;
+  text-align: center;
+}
+
+.magic-tweet-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure the editor container can show the icon */
+.DraftEditor-editorContainer {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+/* Ensure the rich text container doesn't clip the icon */
+[data-testid="tweetTextarea_0RichTextInputContainer"] {
+  overflow: visible !important;
+}

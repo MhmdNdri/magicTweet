@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Magic Tweet</title>
+  <link rel="stylesheet" href="styles/popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-content">
+        <img src="icons/icon48.png" alt="Magic Tweet" class="logo">
+        <h1>Magic Tweet</h1>
+      </div>
+      <div class="status-indicator" id="statusIndicator" title="Extension Status"></div>
+    </header>
+
+    <div class="main-content">
+      <div class="tone-selector">
+        <h2>Select Tone</h2>
+        <div class="tone-buttons">
+          <button class="tone-btn active" data-tone="Sarcastic" aria-pressed="true">
+            <span class="material-icons">sentiment_very_dissatisfied</span>
+            Sarcastic
+          </button>
+          <button class="tone-btn" data-tone="Playful/Funny" aria-pressed="false">
+            <span class="material-icons">sentiment_satisfied</span>
+            Playful/Funny
+          </button>
+          <button class="tone-btn" data-tone="Romantic/Soft" aria-pressed="false">
+            <span class="material-icons">favorite</span>
+            Romantic/Soft
+          </button>
+          <button class="tone-btn" data-tone="Melancholic/Poetic" aria-pressed="false">
+            <span class="material-icons">mood</span>
+            Melancholic/Poetic
+          </button>
+          <button class="tone-btn" data-tone="Hopeful/Uplifting" aria-pressed="false">
+            <span class="material-icons">emoji_emotions</span>
+            Hopeful/Uplifting
+          </button>
+          <button class="tone-btn" data-tone="Cynical/Dark Humor" aria-pressed="false">
+            <span class="material-icons">sentiment_dissatisfied</span>
+            Cynical/Dark Humor
+          </button>
+          <button class="tone-btn" data-tone="Overdramatic/Theatrical" aria-pressed="false">
+            <span class="material-icons">theater_comedy</span>
+            Overdramatic/Theatrical
+          </button>
+          <button class="tone-btn" data-tone="Minimalist/Dry" aria-pressed="false">
+            <span class="material-icons">format_quote</span>
+            Minimalist/Dry
+          </button>
+          <button class="tone-btn" data-tone="Inspirational/Motivational" aria-pressed="false">
+            <span class="material-icons">auto_awesome</span>
+            Inspirational/Motivational
+          </button>
+        </div>
+      </div>
+
+      <div class="suggestions-container">
+        <h2>Suggestions</h2>
+        <div id="suggestions" class="suggestions-list" role="list">
+          <div class="empty-state">
+            <p>Start composing a tweet to get suggestions</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="refreshBtn" class="action-btn" disabled aria-label="Refresh suggestions">
+          <span class="material-icons">refresh</span>
+          Refresh
+        </button>
+        <button id="copyBtn" class="action-btn" disabled aria-label="Copy selected suggestion">
+          <span class="material-icons">content_copy</span>
+          Copy
+        </button>
+      </div>
+    </div>
+  </div>
+  <script src="scripts/popup.js"></script>
+</body>
+</html> 
