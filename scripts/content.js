@@ -59,68 +59,119 @@ function handleExtensionError(error) {
       "Magic Tweet extension needs to be refreshed. Please reload the page.";
     document.body.appendChild(errorMessage);
     setTimeout(() => errorMessage.remove(), 5000);
+
+    // Remove all extension elements
+    removeExtensionElements();
+
+    // Reset initialization state
+    window.MagicTweetExtension.isInitialized = false;
+
+    // Wait for the page to be fully loaded before reinitializing
+    if (document.readyState === "complete") {
+      setTimeout(() => {
+        try {
+          initialize();
+        } catch (e) {
+          console.error("Failed to reinitialize:", e);
+          // Show a more specific error message
+          const reinitError = document.createElement("div");
+          reinitError.style.position = "fixed";
+          reinitError.style.top = "60px";
+          reinitError.style.right = "20px";
+          reinitError.style.backgroundColor = "#E0245E";
+          reinitError.style.color = "white";
+          reinitError.style.padding = "12px 20px";
+          reinitError.style.borderRadius = "8px";
+          reinitError.style.zIndex = "999999";
+          reinitError.style.fontFamily =
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+          reinitError.textContent =
+            "Please reload the page to restore the extension.";
+          document.body.appendChild(reinitError);
+          setTimeout(() => reinitError.remove(), 5000);
+        }
+      }, 2000); // Increased delay to ensure page is stable
+    } else {
+      // If page is not fully loaded, wait for it
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          try {
+            initialize();
+          } catch (e) {
+            console.error("Failed to reinitialize:", e);
+          }
+        }, 2000);
+      });
+    }
   }
 }
 
 // Function to create floating icon
 function createFloatingIcon() {
-  const icon = document.createElement("div");
-  icon.id = "magic-tweet-icon";
-  icon.className = "magic-tweet-icon";
-  icon.innerHTML = `<img src="${chrome.runtime.getURL(
-    "icons/icon.svg"
-  )}" alt="Magic Tweet" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 4px;"> Magic`;
+  try {
+    const icon = document.createElement("div");
+    icon.id = "magic-tweet-icon";
+    icon.className = "magic-tweet-icon";
 
-  Object.assign(icon.style, {
-    backgroundColor: "#1DA1F2",
-    color: "#FFFFFF",
-    padding: "8px 16px",
-    borderRadius: "20px",
-    fontWeight: "500",
-    cursor: "pointer",
-    boxShadow: "0 2px 8px rgba(29, 161, 242, 0.3)",
-    transition: "all 0.2s ease",
-    minWidth: "100px",
-    textAlign: "center",
-    position: "fixed",
-    right: "38%",
-    top: "14%",
-    zIndex: "999999",
-    fontSize: "14px",
-    letterSpacing: "0.5px",
-    transform: "translateY(0)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  });
-
-  icon.addEventListener("mouseover", () => {
-    icon.style.transform = "translateY(-2px)";
-    icon.style.boxShadow = "0 4px 12px rgba(29, 161, 242, 0.4)";
-    icon.style.backgroundColor = "#1a91da";
-  });
-
-  icon.addEventListener("mouseout", () => {
-    icon.style.transform = "translateY(0)";
-    icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
-    icon.style.backgroundColor = "#1DA1F2";
-  });
-
-  icon.addEventListener("click", async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const tweetCompose = findTweetComposer();
-    if (!tweetCompose) return;
-
-    const text = tweetCompose.textContent || tweetCompose.innerText;
-    if (text) {
-      const tonePanel = document.getElementById("magic-tweet-tone-panel");
-      if (tonePanel) tonePanel.style.display = "block";
+    // Try to get the icon URL, if it fails, use a fallback
+    let iconUrl;
+    try {
+      iconUrl = chrome.runtime.getURL("icons/icon.svg");
+    } catch (e) {
+      // Fallback to a data URL if chrome.runtime.getURL fails
+      iconUrl =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0 0-1.41L12.42 4.4a.996.996 0 0 0-1.41 0L2.4 13.01a.996.996 0 0 0 0 1.41l1.41 1.41c.39.39 1.02.39 1.41 0l8.6-8.6 8.6 8.6c.39.39 1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41l-8.6-8.6z'/%3E%3C/svg%3E";
     }
-  });
 
-  return icon;
+    icon.innerHTML = `<img src="${iconUrl}" alt="Magic Tweet" style="width: 40px; height: 40px;">`;
+
+    Object.assign(icon.style, {
+      backgroundColor: "#1DA1F2",
+      color: "#FFFFFF",
+      borderRadius: "50%",
+      cursor: "pointer",
+      boxShadow: "0 2px 8px rgba(29, 161, 242, 0.3)",
+      transition: "all 0.2s ease",
+      position: "fixed",
+      right: "calc(50% - 250px)",
+      top: "11%",
+      zIndex: "999999",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    });
+
+    icon.addEventListener("mouseover", () => {
+      icon.style.transform = "translateY(-2px)";
+      icon.style.boxShadow = "0 4px 12px rgba(29, 161, 242, 0.4)";
+      icon.style.backgroundColor = "#1a91da";
+    });
+
+    icon.addEventListener("mouseout", () => {
+      icon.style.transform = "translateY(0)";
+      icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
+      icon.style.backgroundColor = "#1DA1F2";
+    });
+
+    icon.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tweetCompose = findTweetComposer();
+      if (!tweetCompose) return;
+
+      const text = tweetCompose.textContent || tweetCompose.innerText;
+      if (text) {
+        const tonePanel = document.getElementById("magic-tweet-tone-panel");
+        if (tonePanel) tonePanel.style.display = "block";
+      }
+    });
+
+    return icon;
+  } catch (error) {
+    handleExtensionError(error);
+    return null;
+  }
 }
 
 // Function to handle clicks outside panels
@@ -134,6 +185,7 @@ function handleOutsideClick(event) {
     tonePanel &&
     !suggestionPanel.contains(event.target) &&
     !tonePanel.contains(event.target) &&
+    icon &&
     !icon.contains(event.target)
   ) {
     suggestionPanel.style.display = "none";
@@ -354,6 +406,7 @@ function addIconToComposer(tweetCompose) {
       const suggestionPanel = createSuggestionPanel();
       const tonePanel = createToneSelectionPanel();
 
+      // Add the icon directly to the body
       document.body.appendChild(newIcon);
       document.body.appendChild(suggestionPanel);
       document.body.appendChild(tonePanel);
@@ -476,6 +529,11 @@ function initialize() {
   if (window.MagicTweetExtension.isInitialized) return;
 
   try {
+    // Clear any existing observers
+    if (window.MagicTweetExtension.observer) {
+      window.MagicTweetExtension.observer.disconnect();
+    }
+
     const observer = new MutationObserver(
       debounce((mutations) => {
         const tweetCompose = findTweetComposer();
@@ -512,6 +570,8 @@ function initialize() {
       characterData: false,
     });
 
+    // Store the observer for cleanup
+    window.MagicTweetExtension.observer = observer;
     window.MagicTweetExtension.isInitialized = true;
   } catch (error) {
     handleExtensionError(error);
