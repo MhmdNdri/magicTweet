@@ -136,7 +136,9 @@ function createFloatingIcon() {
       right: "calc(50% - 250px)",
       top: "11%",
       zIndex: "999999",
-      display: "flex",
+      width: "32px",
+      height: "32px",
+      display: "none", // Initially hidden
       alignItems: "center",
       justifyContent: "center",
     });
@@ -151,20 +153,6 @@ function createFloatingIcon() {
       icon.style.transform = "translateY(0)";
       icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
       icon.style.backgroundColor = "#1DA1F2";
-    });
-
-    icon.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const tweetCompose = findTweetComposer();
-      if (!tweetCompose) return;
-
-      const text = tweetCompose.textContent || tweetCompose.innerText;
-      if (text) {
-        const tonePanel = document.getElementById("magic-tweet-tone-panel");
-        if (tonePanel) tonePanel.style.display = "block";
-      }
     });
 
     return icon;
@@ -416,16 +404,20 @@ function addIconToComposer(tweetCompose) {
     document.body.appendChild(tonePanel);
   }
 
-  // Initially hide the icon
-  if (icon) {
-    icon.style.display = "none";
-  }
-
   // Add input event listener to show/hide icon based on text content
   const handleInput = () => {
-    const text = tweetCompose.textContent || tweetCompose.innerText;
+    const text = tweetCompose.textContent || tweetCompose.innerText || "";
+    const isEmpty =
+      !text.trim() || text === "" || text === "\n" || text === "\r\n";
+
     if (icon) {
-      icon.style.display = text.trim() ? "flex" : "none";
+      icon.style.display = isEmpty ? "none" : "flex";
+    }
+
+    // Also hide panels if text is empty
+    if (isEmpty) {
+      if (suggestionPanel) suggestionPanel.style.display = "none";
+      if (tonePanel) tonePanel.style.display = "none";
     }
   };
 
@@ -441,8 +433,8 @@ function addIconToComposer(tweetCompose) {
       e.preventDefault();
       e.stopPropagation();
 
-      const text = tweetCompose.textContent || tweetCompose.innerText;
-      if (text) {
+      const text = tweetCompose.textContent || tweetCompose.innerText || "";
+      if (text.trim()) {
         const tonePanel = document.getElementById("magic-tweet-tone-panel");
         if (tonePanel) tonePanel.style.display = "block";
       }
@@ -519,7 +511,7 @@ function displaySuggestions(suggestions, container) {
         (text, index) => `
         <div class="magic-tweet-variation" style="margin-bottom: 12px;">
           <div class="magic-tweet-text" style="margin-bottom: 8px; line-height: 1.4;">${text}</div>
-          <button class="magic-tweet-use" style="background: #1DA1F2; color: white; border: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-weight: 500; transition: background 0.2s;" data-variation="${index}">Use</button>
+          <button class="magic-tweet-copy" style="background: #1DA1F2; color: white; border: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-weight: 500; transition: background 0.2s;" data-variation="${index}">Copy</button>
         </div>
       `
       )
@@ -530,23 +522,49 @@ function displaySuggestions(suggestions, container) {
       <div class="magic-tweet-variations">${variationsHtml}</div>
     `;
 
-    suggestion.querySelectorAll(".magic-tweet-use").forEach((button) => {
-      button.addEventListener("click", () => {
+    suggestion.querySelectorAll(".magic-tweet-copy").forEach((button) => {
+      button.addEventListener("click", async () => {
         const variationIndex = parseInt(button.dataset.variation);
         const text = variationsArray[variationIndex];
-        const tweetCompose = findTweetComposer();
-        if (tweetCompose) {
-          tweetCompose.textContent = text;
-          tweetCompose.dispatchEvent(new Event("input", { bubbles: true }));
+
+        try {
+          // Copy to clipboard
+          await navigator.clipboard.writeText(text);
+
+          // Show success feedback
+          const originalText = button.textContent;
+          button.textContent = "Copied!";
+          button.style.backgroundColor = "#17BF63";
+
+          // Reset button after 2 seconds
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.style.backgroundColor = "#1DA1F2";
+          }, 2000);
+
+          // Hide the panel
           document.getElementById("magic-tweet-panel").style.display = "none";
+        } catch (err) {
+          console.error("Failed to copy text:", err);
+          button.textContent = "Failed to copy";
+          button.style.backgroundColor = "#E0245E";
+
+          setTimeout(() => {
+            button.textContent = "Copy";
+            button.style.backgroundColor = "#1DA1F2";
+          }, 2000);
         }
       });
 
       button.addEventListener("mouseover", () => {
-        button.style.backgroundColor = "#1a91da";
+        if (button.textContent === "Copy") {
+          button.style.backgroundColor = "#1a91da";
+        }
       });
       button.addEventListener("mouseout", () => {
-        button.style.backgroundColor = "#1DA1F2";
+        if (button.textContent === "Copy") {
+          button.style.backgroundColor = "#1DA1F2";
+        }
       });
     });
 
