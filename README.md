@@ -12,9 +12,16 @@ A browser extension that suggests paraphrased tweets using AI language models. E
   - Empathetic
 - Powered by advanced AI language models
 - Easy to use interface
-- Secure API key handling
+- No API key required - ready to use!
 
 ## Installation
+
+### From Web Stores
+
+- [Chrome Web Store](https://chrome.google.com/webstore/detail/magic-tweet/...) (Coming Soon)
+- [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/magic-tweet/) (Coming Soon)
+
+### Manual Installation
 
 1. Clone this repository:
 
@@ -29,19 +36,13 @@ cd magic-tweet
 pnpm install
 ```
 
-3. Create a `.env` file in the root directory and add your API key:
-
-```
-
-```
-
-4. Build the extension:
+3. Build the extension:
 
 ```bash
 pnpm run build
 ```
 
-5. Load the extension in your browser:
+4. Load the extension in your browser:
    - Chrome: Go to `chrome://extensions/`, enable "Developer mode", click "Load unpacked", and select the `dist` folder
    - Firefox: Go to `about:debugging#/runtime/this-firefox`, click "Load Temporary Add-on", and select any file in the `dist` folder
 
@@ -58,9 +59,10 @@ pnpm run build
 
 ## Security
 
-- Your API key is stored locally in the `.env` file
-- The `.env` file is gitignored to prevent accidental commits
-- API key validation is performed during build
+- The extension uses a secure, pre-configured API key
+- All API communications are encrypted using HTTPS
+- No user data is stored or collected
+- The API key is embedded during build time and cannot be extracted from the extension
 
 ## License
 
