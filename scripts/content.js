@@ -396,59 +396,102 @@ function removeExtensionElements() {
 
 // Function to add icon and panels to tweet composer
 function addIconToComposer(tweetCompose) {
-  if (!tweetCompose || document.getElementById("magic-tweet-icon")) return;
+  if (!tweetCompose) return;
 
-  // Add click event listener to the tweet composer
-  tweetCompose.addEventListener("click", () => {
-    const icon = document.getElementById("magic-tweet-icon");
-    if (!icon) {
-      const newIcon = createFloatingIcon();
-      const suggestionPanel = createSuggestionPanel();
-      const tonePanel = createToneSelectionPanel();
+  // Create icon and panels if they don't exist
+  let icon = document.getElementById("magic-tweet-icon");
+  let suggestionPanel = document.getElementById("magic-tweet-panel");
+  let tonePanel = document.getElementById("magic-tweet-tone-panel");
 
-      // Add the icon directly to the body
-      document.body.appendChild(newIcon);
-      document.body.appendChild(suggestionPanel);
-      document.body.appendChild(tonePanel);
+  if (!icon) {
+    icon = createFloatingIcon();
+    document.body.appendChild(icon);
+  }
+  if (!suggestionPanel) {
+    suggestionPanel = createSuggestionPanel();
+    document.body.appendChild(suggestionPanel);
+  }
+  if (!tonePanel) {
+    tonePanel = createToneSelectionPanel();
+    document.body.appendChild(tonePanel);
+  }
 
-      document.addEventListener("click", handleOutsideClick);
+  // Initially hide the icon
+  if (icon) {
+    icon.style.display = "none";
+  }
 
-      tonePanel.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const tone = button.dataset.tone;
-          const text = tweetCompose.textContent || tweetCompose.innerText;
-
-          if (!text || !tone) {
-            showError(suggestionPanel, "Missing required information");
-            return;
-          }
-
-          tonePanel.style.display = "none";
-          suggestionPanel.style.display = "block";
-          showLoadingState(suggestionPanel);
-
-          try {
-            const response = await chrome.runtime.sendMessage({
-              action: "generateSuggestions",
-              text: text,
-              tone: tone,
-            });
-
-            if (response && response.suggestions) {
-              displaySuggestions(
-                response.suggestions,
-                suggestionPanel.querySelector(".magic-tweet-panel-content")
-              );
-            } else if (response && response.error) {
-              showError(suggestionPanel, response.error);
-            }
-          } catch (error) {
-            handleExtensionError(error);
-          }
-        });
-      });
+  // Add input event listener to show/hide icon based on text content
+  const handleInput = () => {
+    const text = tweetCompose.textContent || tweetCompose.innerText;
+    if (icon) {
+      icon.style.display = text.trim() ? "flex" : "none";
     }
-  });
+  };
+
+  // Add input event listener
+  tweetCompose.addEventListener("input", handleInput);
+
+  // Check initial state
+  handleInput();
+
+  // Add click event listener to the icon
+  if (icon) {
+    icon.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const text = tweetCompose.textContent || tweetCompose.innerText;
+      if (text) {
+        const tonePanel = document.getElementById("magic-tweet-tone-panel");
+        if (tonePanel) tonePanel.style.display = "block";
+      }
+    });
+  }
+
+  // Add tone panel event listeners
+  if (tonePanel) {
+    tonePanel.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const tone = button.dataset.tone;
+        const text = tweetCompose.textContent || tweetCompose.innerText;
+
+        if (!text || !tone) {
+          showError(suggestionPanel, "Missing required information");
+          return;
+        }
+
+        tonePanel.style.display = "none";
+        suggestionPanel.style.display = "block";
+        showLoadingState(suggestionPanel);
+
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "generateSuggestions",
+            text: text,
+            tone: tone,
+          });
+
+          if (response && response.suggestions) {
+            displaySuggestions(
+              response.suggestions,
+              suggestionPanel.querySelector(".magic-tweet-panel-content")
+            );
+          } else if (response && response.error) {
+            showError(suggestionPanel, response.error);
+          }
+        } catch (error) {
+          handleExtensionError(error);
+        }
+      });
+    });
+  }
+
+  // Add document click listener if not already added
+  if (!document.magicTweetClickHandlerAdded) {
+    document.addEventListener("click", handleOutsideClick);
+    document.magicTweetClickHandlerAdded = true;
+  }
 }
 
 // Display suggestions in the panel
