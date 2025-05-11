@@ -3,9 +3,6 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = "gpt-4.1-nano";
 
-console.log("Magic Tweet: Background script initialized");
-console.log("Magic Tweet: API Key present:", !!OPENAI_API_KEY);
-
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Magic Tweet: Background script received message:", request);

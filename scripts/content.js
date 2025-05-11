@@ -578,8 +578,6 @@ function addIconToComposer(tweetCompose) {
             tone: tone,
           });
 
-          console.log("API Response:", response); // Debug log
-
           if (response && response.suggestions) {
             // Ensure we have valid suggestions
             const suggestions = response.suggestions;
@@ -600,7 +598,7 @@ function addIconToComposer(tweetCompose) {
             showError(suggestionPanel, "Failed to generate suggestions");
           }
         } catch (error) {
-          console.error("Error generating suggestions:", error); // Debug log
+          console.error("Error generating suggestions:", error);
           handleExtensionError(error);
           showError(suggestionPanel, "Failed to generate suggestions");
         }
@@ -618,9 +616,6 @@ function addIconToComposer(tweetCompose) {
 // Display suggestions in the panel
 function displaySuggestions(suggestions, container) {
   container.innerHTML = "";
-
-  // Debug log to see what we're receiving
-  console.log("Received suggestions:", suggestions);
 
   if (!suggestions) {
     container.innerHTML =

@@ -43,13 +43,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   // Inject content script if not already injected
-  try {
-    await chrome.scripting.executeScript({
+  if (tab.id) {
+    chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ["scripts/content.js"],
+      files: ["content.js"],
     });
-  } catch (error) {
-    console.log("Content script already injected");
   }
 
   // Wait for content script to be ready
