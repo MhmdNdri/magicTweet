@@ -1,4 +1,5 @@
 :root {
+  /* Light theme (default) */
   --primary-color: #1da1f2;
   --primary-hover: #1a91da;
   --background-color: #ffffff;
@@ -7,6 +8,27 @@
   --success-color: #17bf63;
   --error-color: #e0245e;
   --disabled-color: #aab8c2;
+  --hover-bg-color: #f5f8fa;
+  --selected-bg-color: #e8f5fe;
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: #c1c1c1;
+  --scrollbar-thumb-hover: #a8a8a8;
+}
+
+[data-theme="dark"] {
+  --primary-color: #1da1f2;
+  --primary-hover: #1a91da;
+  --background-color: #15202b;
+  --text-color: #ffffff;
+  --border-color: #38444d;
+  --success-color: #17bf63;
+  --error-color: #e0245e;
+  --disabled-color: #657786;
+  --hover-bg-color: #192734;
+  --selected-bg-color: #1a2736;
+  --scrollbar-track: #192734;
+  --scrollbar-thumb: #38444d;
+  --scrollbar-thumb-hover: #657786;
 }
 
 * {
@@ -104,7 +126,7 @@ h2 {
 }
 
 .tone-btn:hover {
-  background-color: #f5f8fa;
+  background-color: var(--hover-bg-color);
 }
 
 .tone-btn.active {
@@ -124,17 +146,17 @@ h2 {
 }
 
 .tone-buttons::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--scrollbar-track);
   border-radius: 3px;
 }
 
 .tone-buttons::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 .tone-buttons::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .suggestions-container {
@@ -160,11 +182,11 @@ h2 {
 }
 
 .suggestion:hover {
-  background-color: #f5f8fa;
+  background-color: var(--hover-bg-color);
 }
 
 .suggestion.selected {
-  background-color: #e8f5fe;
+  background-color: var(--selected-bg-color);
   border-left: 3px solid var(--primary-color);
 }
 
@@ -215,17 +237,17 @@ h2 {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--scrollbar-track);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Toast notification */
@@ -263,4 +285,33 @@ h2 {
   to {
     opacity: 0;
   }
+}
+
+/* Theme toggle button */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background-color: var(--hover-bg-color);
+}
+
+.theme-toggle .material-icons {
+  font-size: 20px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }

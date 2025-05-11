@@ -13,7 +13,12 @@
         <img src="icons/icon48.png" alt="Magic Tweet" class="logo">
         <h1>Magic Tweet</h1>
       </div>
-      <div class="status-indicator" id="statusIndicator" title="Extension Status"></div>
+      <div class="header-actions">
+        <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+          <span class="material-icons">dark_mode</span>
+        </button>
+        <div class="status-indicator" id="statusIndicator" title="Extension Status"></div>
+      </div>
     </header>
 
     <div class="main-content">
@@ -80,6 +85,7 @@
       </div>
     </div>
   </div>
+  <script src="scripts/theme.js"></script>
   <script src="scripts/popup.js"></script>
 </body>
 </html> 

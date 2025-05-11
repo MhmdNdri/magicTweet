@@ -14,6 +14,22 @@ window.MagicTweetExtension = {
   },
 };
 
+// Listen for theme changes
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === "local" && changes["magic-tweet-theme"]) {
+    const newTheme = changes["magic-tweet-theme"].newValue;
+    document.documentElement.setAttribute("data-theme", newTheme);
+  }
+});
+
+// Initialize theme
+function initTheme() {
+  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
+    const theme = result["magic-tweet-theme"] || "light";
+    document.documentElement.setAttribute("data-theme", theme);
+  });
+}
+
 // Function to find tweet composer
 function findTweetComposer() {
   const selectors = [
@@ -185,48 +201,92 @@ function handleOutsideClick(event) {
 function createSuggestionPanel() {
   const panel = document.createElement("div");
   panel.id = "magic-tweet-panel";
-  panel.className = "magic-tweet-panel";
+  panel.className = "magic-tweet-container";
 
+  // Set initial styles
   Object.assign(panel.style, {
     display: "none",
     position: "fixed",
     right: "38%",
     top: "calc(14% + 50px)",
     width: "300px",
-    backgroundColor: "#FFFFFF",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     zIndex: "10000",
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    backgroundColor: "#FFFFFF",
+    borderRadius: "12px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    border: "1px solid #E1E8ED",
+    padding: "12px",
+    color: "#14171A",
+  });
+
+  // Add theme support
+  const updateTheme = (isDark) => {
+    panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+    panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+    panel.style.color = isDark ? "#FFFFFF" : "#14171A";
+
+    // Update all suggestion elements
+    const suggestions = panel.querySelectorAll(".magic-tweet-suggestion");
+    suggestions.forEach((suggestion) => {
+      suggestion.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+      suggestion.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+      suggestion.style.color = isDark ? "#FFFFFF" : "#14171A";
+    });
+
+    // Update all variation elements
+    const variations = panel.querySelectorAll(".magic-tweet-variation");
+    variations.forEach((variation) => {
+      variation.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+      variation.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+    });
+
+    // Update all text elements
+    const texts = panel.querySelectorAll(
+      ".magic-tweet-text, .magic-tweet-tone"
+    );
+    texts.forEach((text) => {
+      text.style.color = isDark ? "#FFFFFF" : "#14171A";
+    });
+  };
+
+  // Check current theme
+  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
+    updateTheme(result["magic-tweet-theme"] === "dark");
+  });
+
+  // Listen for theme changes
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes["magic-tweet-theme"]) {
+      updateTheme(changes["magic-tweet-theme"].newValue === "dark");
+    }
   });
 
   panel.addEventListener("click", (e) => e.stopPropagation());
 
   const header = document.createElement("div");
-  header.className = "magic-tweet-panel-header";
-  Object.assign(header.style, {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px 16px",
-    borderBottom: "1px solid #e1e8ed",
-    fontWeight: "600",
-    color: "#14171A",
-  });
+  header.className = "magic-tweet-header";
+  header.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E1E8ED;
+  `;
   header.innerHTML = `
-    <span>Magic Tweet Suggestions</span>
-    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #657786;">×</button>
+    <span style="font-weight: 500;">Magic Tweet Suggestions</span>
+    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
   `;
 
   const content = document.createElement("div");
-  content.className = "magic-tweet-panel-content";
-  Object.assign(content.style, {
-    maxHeight: "400px",
-    overflowY: "auto",
-    padding: "12px",
-    color: "#14171A",
-  });
+  content.className = "magic-tweet-suggestions";
+  content.style.cssText = `
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+  `;
 
   panel.appendChild(header);
   panel.appendChild(content);
@@ -242,44 +302,77 @@ function createSuggestionPanel() {
 function createToneSelectionPanel() {
   const panel = document.createElement("div");
   panel.id = "magic-tweet-tone-panel";
-  panel.className = "magic-tweet-panel";
+  panel.className = "magic-tweet-container";
 
+  // Set initial styles
   Object.assign(panel.style, {
     display: "none",
     position: "fixed",
     right: "38%",
     top: "calc(14% + 50px)",
     width: "300px",
-    backgroundColor: "#FFFFFF",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
     zIndex: "10000",
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    backgroundColor: "#FFFFFF",
+    borderRadius: "12px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    border: "1px solid #E1E8ED",
+    padding: "12px",
+    color: "#14171A",
+  });
+
+  // Add theme support
+  const updateTheme = (isDark) => {
+    panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+    panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+    panel.style.color = isDark ? "#FFFFFF" : "#14171A";
+
+    // Update tone buttons
+    const buttons = panel.querySelectorAll(".magic-tweet-tone-btn");
+    buttons.forEach((button) => {
+      button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+      button.style.borderColor = "#1DA1F2";
+      button.style.color = "#1DA1F2";
+    });
+  };
+
+  // Check current theme
+  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
+    updateTheme(result["magic-tweet-theme"] === "dark");
+  });
+
+  // Listen for theme changes
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes["magic-tweet-theme"]) {
+      updateTheme(changes["magic-tweet-theme"].newValue === "dark");
+    }
   });
 
   panel.addEventListener("click", (e) => e.stopPropagation());
 
   const header = document.createElement("div");
-  header.className = "magic-tweet-panel-header";
-  Object.assign(header.style, {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "12px 16px",
-    borderBottom: "1px solid #e1e8ed",
-    fontWeight: "600",
-    color: "#14171A",
-  });
+  header.className = "magic-tweet-header";
+  header.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E1E8ED;
+  `;
   header.innerHTML = `
-    <span>Select a Tone</span>
-    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #657786;">×</button>
+    <span style="font-weight: 500;">Select a Tone</span>
+    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
   `;
 
   const content = document.createElement("div");
-  content.className = "magic-tweet-panel-content";
-  content.style.padding = "12px";
-  content.style.color = "#14171A";
+  content.className = "magic-tweet-suggestions";
+  content.style.cssText = `
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+  `;
 
   const toneButtons = Object.entries(window.MagicTweetExtension.TONE_OPTIONS)
     .map(
@@ -311,7 +404,9 @@ function createToneSelectionPanel() {
       button.style.color = "#FFFFFF";
     });
     button.addEventListener("mouseout", () => {
-      button.style.backgroundColor = "#FFFFFF";
+      const isDark =
+        document.documentElement.getAttribute("data-theme") === "dark";
+      button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
       button.style.color = "#1DA1F2";
     });
   });
@@ -325,11 +420,11 @@ function createToneSelectionPanel() {
 
 // Function to show loading state
 function showLoadingState(panel) {
-  const content = panel.querySelector(".magic-tweet-panel-content");
+  const content = panel.querySelector(".magic-tweet-suggestions");
   content.innerHTML = `
     <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
-      <div style="width: 40px; height: 40px; border: 3px solid #1DA1F2; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
-      <div style="color: #14171A; font-size: 14px;">Generating suggestions...</div>
+      <div style="width: 40px; height: 40px; border: 3px solid var(--primary-color); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
+      <div style="color: var(--text-color); font-size: 14px;">Generating suggestions...</div>
     </div>
     <style>
       @keyframes spin {
@@ -341,12 +436,12 @@ function showLoadingState(panel) {
 
 // Function to show error message
 function showError(panel, error) {
-  const content = panel.querySelector(".magic-tweet-panel-content");
+  const content = panel.querySelector(".magic-tweet-suggestions");
   content.innerHTML = `
     <div style="padding: 20px; text-align: center;">
-      <div style="color: #E0245E; margin-bottom: 12px; font-weight: 500;">Error: ${error}</div>
+      <div style="color: var(--error-color); margin-bottom: 12px; font-weight: 500;">Error: ${error}</div>
       <button class="magic-tweet-retry" style="
-        background: #1DA1F2;
+        background: var(--primary-color);
         color: white;
         border: none;
         padding: 8px 16px;
@@ -435,8 +530,20 @@ function addIconToComposer(tweetCompose) {
 
       const text = tweetCompose.textContent || tweetCompose.innerText || "";
       if (text.trim()) {
-        const tonePanel = document.getElementById("magic-tweet-tone-panel");
-        if (tonePanel) tonePanel.style.display = "block";
+        // Hide suggestion panel if it's visible
+        if (suggestionPanel) {
+          suggestionPanel.style.display = "none";
+        }
+
+        // Show tone panel
+        if (tonePanel) {
+          tonePanel.style.display = "block";
+          // Position the panel
+          tonePanel.style.position = "fixed";
+          tonePanel.style.right = "38%";
+          tonePanel.style.top = "calc(14% + 50px)";
+          tonePanel.style.zIndex = "10000";
+        }
       }
     });
   }
@@ -453,8 +560,15 @@ function addIconToComposer(tweetCompose) {
           return;
         }
 
+        // Hide tone panel and show suggestion panel
         tonePanel.style.display = "none";
         suggestionPanel.style.display = "block";
+        // Position the suggestion panel
+        suggestionPanel.style.position = "fixed";
+        suggestionPanel.style.right = "38%";
+        suggestionPanel.style.top = "calc(14% + 50px)";
+        suggestionPanel.style.zIndex = "10000";
+
         showLoadingState(suggestionPanel);
 
         try {
@@ -464,16 +578,31 @@ function addIconToComposer(tweetCompose) {
             tone: tone,
           });
 
+          console.log("API Response:", response); // Debug log
+
           if (response && response.suggestions) {
-            displaySuggestions(
-              response.suggestions,
-              suggestionPanel.querySelector(".magic-tweet-panel-content")
-            );
+            // Ensure we have valid suggestions
+            const suggestions = response.suggestions;
+            if (
+              typeof suggestions === "object" &&
+              Object.keys(suggestions).length > 0
+            ) {
+              displaySuggestions(
+                suggestions,
+                suggestionPanel.querySelector(".magic-tweet-suggestions")
+              );
+            } else {
+              showError(suggestionPanel, "No suggestions generated");
+            }
           } else if (response && response.error) {
             showError(suggestionPanel, response.error);
+          } else {
+            showError(suggestionPanel, "Failed to generate suggestions");
           }
         } catch (error) {
+          console.error("Error generating suggestions:", error); // Debug log
           handleExtensionError(error);
+          showError(suggestionPanel, "Failed to generate suggestions");
         }
       });
     });
@@ -490,86 +619,205 @@ function addIconToComposer(tweetCompose) {
 function displaySuggestions(suggestions, container) {
   container.innerHTML = "";
 
-  if (!suggestions || Object.keys(suggestions).length === 0) {
+  // Debug log to see what we're receiving
+  console.log("Received suggestions:", suggestions);
+
+  if (!suggestions) {
     container.innerHTML =
       '<div class="magic-tweet-error" style="color: #E0245E;">No suggestions available</div>';
     return;
   }
 
-  Object.entries(suggestions).forEach(([tone, variations]) => {
-    const variationsArray = Array.isArray(variations) ? variations : [];
-    const suggestion = document.createElement("div");
-    suggestion.className = "magic-tweet-suggestion";
-    Object.assign(suggestion.style, {
-      padding: "12px",
-      borderBottom: "1px solid #e1e8ed",
-      color: "#14171A",
+  try {
+    // Handle different response formats
+    let suggestionsToDisplay = [];
+
+    if (typeof suggestions === "string") {
+      // If it's a single string, wrap it in an object
+      suggestionsToDisplay = [
+        {
+          tone: "Suggestion",
+          variations: [suggestions],
+        },
+      ];
+    } else if (Array.isArray(suggestions)) {
+      // If it's an array, convert each item to the proper format
+      suggestionsToDisplay = suggestions.map((suggestion) => {
+        if (typeof suggestion === "string") {
+          return {
+            tone: "Suggestion",
+            variations: [suggestion],
+          };
+        }
+        return suggestion;
+      });
+    } else if (typeof suggestions === "object") {
+      // If it's an object with variations
+      if (suggestions.variations) {
+        suggestionsToDisplay = [suggestions];
+      } else {
+        // If it's an object with multiple tones
+        suggestionsToDisplay = Object.entries(suggestions).map(
+          ([tone, variations]) => ({
+            tone: tone,
+            variations: Array.isArray(variations) ? variations : [variations],
+          })
+        );
+      }
+    }
+
+    if (
+      !Array.isArray(suggestionsToDisplay) ||
+      suggestionsToDisplay.length === 0
+    ) {
+      container.innerHTML =
+        '<div class="magic-tweet-error" style="color: #E0245E;">No suggestions available</div>';
+      return;
+    }
+
+    // Now we can safely use forEach since we know suggestionsToDisplay is an array
+    suggestionsToDisplay.forEach((suggestion) => {
+      if (!suggestion || !suggestion.variations) return;
+
+      const suggestionDiv = document.createElement("div");
+      suggestionDiv.className = "magic-tweet-suggestion";
+      suggestionDiv.style.cssText = `
+        margin-bottom: 16px;
+        padding: 12px;
+        background: #FFFFFF;
+        border: 1px solid #E1E8ED;
+        border-radius: 8px;
+        color: #14171A;
+      `;
+
+      const tone = suggestion.tone || "Suggestion";
+      const variations = Array.isArray(suggestion.variations)
+        ? suggestion.variations
+        : [suggestion.variations];
+
+      const variationsHtml = variations
+        .filter((text) => text) // Filter out null/undefined/empty strings
+        .map(
+          (text, index) => `
+          <div class="magic-tweet-variation" style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #FFFFFF;
+            border: 1px solid #E1E8ED;
+            border-radius: 6px;
+            color: #14171A;
+          ">
+            <div class="magic-tweet-text" style="
+              flex: 1;
+              margin-right: 8px;
+              color: #14171A;
+            ">${text}</div>
+            <button class="magic-tweet-copy" style="
+              background: #1DA1F2;
+              color: white;
+              border: none;
+              padding: 6px 12px;
+              border-radius: 16px;
+              cursor: pointer;
+              font-weight: 500;
+              transition: background 0.2s;
+              white-space: nowrap;
+            " data-variation="${index}">Copy</button>
+          </div>
+        `
+        )
+        .join("");
+
+      if (!variationsHtml) return; // Skip if no valid variations
+
+      suggestionDiv.innerHTML = `
+        <div class="magic-tweet-tone" style="
+          font-weight: 500;
+          margin-bottom: 8px;
+          color: #14171A;
+        ">${tone}</div>
+        <div class="magic-tweet-variations">${variationsHtml}</div>
+      `;
+
+      suggestionDiv.querySelectorAll(".magic-tweet-copy").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const variationIndex = parseInt(button.dataset.variation);
+          const text = variations[variationIndex];
+
+          if (!text) return;
+
+          try {
+            await navigator.clipboard.writeText(text);
+            button.textContent = "Copied!";
+            button.style.backgroundColor = "#17BF63";
+
+            setTimeout(() => {
+              button.textContent = "Copy";
+              button.style.backgroundColor = "#1DA1F2";
+            }, 2000);
+
+            document.getElementById("magic-tweet-panel").style.display = "none";
+          } catch (err) {
+            console.error("Failed to copy text:", err);
+            button.textContent = "Failed to copy";
+            button.style.backgroundColor = "#E0245E";
+
+            setTimeout(() => {
+              button.textContent = "Copy";
+              button.style.backgroundColor = "#1DA1F2";
+            }, 2000);
+          }
+        });
+
+        button.addEventListener("mouseover", () => {
+          if (button.textContent === "Copy") {
+            button.style.backgroundColor = "#1a91da";
+          }
+        });
+        button.addEventListener("mouseout", () => {
+          if (button.textContent === "Copy") {
+            button.style.backgroundColor = "#1DA1F2";
+          }
+        });
+      });
+
+      container.appendChild(suggestionDiv);
     });
 
-    const variationsHtml = variationsArray
-      .map(
-        (text, index) => `
-        <div class="magic-tweet-variation" style="margin-bottom: 12px;">
-          <div class="magic-tweet-text" style="margin-bottom: 8px; line-height: 1.4;">${text}</div>
-          <button class="magic-tweet-copy" style="background: #1DA1F2; color: white; border: none; padding: 6px 12px; border-radius: 16px; cursor: pointer; font-weight: 500; transition: background 0.2s;" data-variation="${index}">Copy</button>
-        </div>
-      `
-      )
-      .join("");
-
-    suggestion.innerHTML = `
-      <div class="magic-tweet-tone" style="font-weight: 600; color: #1DA1F2; margin-bottom: 8px;">${tone}</div>
-      <div class="magic-tweet-variations">${variationsHtml}</div>
-    `;
-
-    suggestion.querySelectorAll(".magic-tweet-copy").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const variationIndex = parseInt(button.dataset.variation);
-        const text = variationsArray[variationIndex];
-
-        try {
-          // Copy to clipboard
-          await navigator.clipboard.writeText(text);
-
-          // Show success feedback
-          const originalText = button.textContent;
-          button.textContent = "Copied!";
-          button.style.backgroundColor = "#17BF63";
-
-          // Reset button after 2 seconds
-          setTimeout(() => {
-            button.textContent = originalText;
-            button.style.backgroundColor = "#1DA1F2";
-          }, 2000);
-
-          // Hide the panel
-          document.getElementById("magic-tweet-panel").style.display = "none";
-        } catch (err) {
-          console.error("Failed to copy text:", err);
-          button.textContent = "Failed to copy";
-          button.style.backgroundColor = "#E0245E";
-
-          setTimeout(() => {
-            button.textContent = "Copy";
-            button.style.backgroundColor = "#1DA1F2";
-          }, 2000);
-        }
+    // Update theme for newly added suggestions
+    const isDark =
+      document.documentElement.getAttribute("data-theme") === "dark";
+    const updateTheme = (isDark) => {
+      const suggestions = container.querySelectorAll(".magic-tweet-suggestion");
+      suggestions.forEach((suggestion) => {
+        suggestion.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+        suggestion.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+        suggestion.style.color = isDark ? "#FFFFFF" : "#14171A";
       });
 
-      button.addEventListener("mouseover", () => {
-        if (button.textContent === "Copy") {
-          button.style.backgroundColor = "#1a91da";
-        }
+      const variations = container.querySelectorAll(".magic-tweet-variation");
+      variations.forEach((variation) => {
+        variation.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+        variation.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
       });
-      button.addEventListener("mouseout", () => {
-        if (button.textContent === "Copy") {
-          button.style.backgroundColor = "#1DA1F2";
-        }
-      });
-    });
 
-    container.appendChild(suggestion);
-  });
+      const texts = container.querySelectorAll(
+        ".magic-tweet-text, .magic-tweet-tone"
+      );
+      texts.forEach((text) => {
+        text.style.color = isDark ? "#FFFFFF" : "#14171A";
+      });
+    };
+
+    updateTheme(isDark);
+  } catch (error) {
+    console.error("Error displaying suggestions:", error);
+    container.innerHTML =
+      '<div class="magic-tweet-error" style="color: #E0245E;">Error displaying suggestions</div>';
+  }
 }
 
 // Debounce function
@@ -616,6 +864,7 @@ function initialize() {
           if (isTweetComposer) {
             try {
               addIconToComposer(tweetCompose);
+              initTheme(); // Initialize theme
             } catch (error) {
               handleExtensionError(error);
             }
@@ -634,6 +883,13 @@ function initialize() {
     // Store the observer for cleanup
     window.MagicTweetExtension.observer = observer;
     window.MagicTweetExtension.isInitialized = true;
+
+    // Initial check
+    const tweetCompose = findTweetComposer();
+    if (tweetCompose) {
+      addIconToComposer(tweetCompose);
+      initTheme();
+    }
   } catch (error) {
     handleExtensionError(error);
   }

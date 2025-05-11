@@ -1,9 +1,35 @@
+:root {
+  --primary-color: #1da1f2;
+  --primary-hover: #1a91da;
+  --background-color: #ffffff;
+  --text-color: #14171a;
+  --border-color: #e1e8ed;
+  --hover-bg-color: #f5f8fa;
+  --variation-bg: #f8f9fa;
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: #1da1f2;
+  --scrollbar-thumb-hover: #1a91da;
+}
+
+[data-theme="dark"] {
+  --primary-color: #1da1f2;
+  --primary-hover: #1a91da;
+  --background-color: #15202b;
+  --text-color: #ffffff;
+  --border-color: #38444d;
+  --hover-bg-color: #192734;
+  --variation-bg: #192734;
+  --scrollbar-track: #192734;
+  --scrollbar-thumb: #1da1f2;
+  --scrollbar-thumb-hover: #1a91da;
+}
+
 .magic-tweet-container {
   position: absolute;
   right: -320px;
   top: 0;
   width: 300px;
-  background: white;
+  background: var(--background-color);
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   padding: 16px;
@@ -13,10 +39,10 @@
 .magic-tweet-header {
   font-size: 16px;
   font-weight: bold;
-  color: #1da1f2;
+  color: var(--primary-color);
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .magic-tweet-suggestions {
@@ -26,7 +52,7 @@
 
 .magic-tweet-suggestion {
   padding: 16px;
-  border-bottom: 1px solid #e1e8ed;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .magic-tweet-suggestion:last-child {
@@ -35,20 +61,20 @@
 
 .magic-tweet-tone {
   font-weight: 600;
-  color: #1da1f2;
+  color: var(--primary-color);
   margin-bottom: 8px;
   font-size: 14px;
 }
 
 .magic-tweet-text {
   font-size: 14px;
-  color: #14171a;
+  color: var(--text-color);
   margin-bottom: 8px;
   line-height: 1.4;
 }
 
 .magic-tweet-use {
-  background: #1da1f2;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 4px;
@@ -59,7 +85,7 @@
 }
 
 .magic-tweet-use:hover {
-  background: #1a91da;
+  background: var(--primary-hover);
 }
 
 /* Scrollbar styling */
@@ -68,17 +94,17 @@
 }
 
 .magic-tweet-suggestions::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--scrollbar-track);
   border-radius: 3px;
 }
 
 .magic-tweet-suggestions::-webkit-scrollbar-thumb {
-  background: #1da1f2;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 .magic-tweet-suggestions::-webkit-scrollbar-thumb:hover {
-  background: #1a91da;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .magic-tweet-variations {
@@ -90,9 +116,9 @@
 
 .magic-tweet-variation {
   padding: 8px;
-  border: 1px solid #e1e8ed;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #f8f9fa;
+  background: var(--variation-bg);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -112,7 +138,7 @@
   top: 10px;
   cursor: pointer;
   z-index: 999999;
-  background: #1da1f2;
+  background: var(--primary-color);
   color: white;
   padding: 8px 12px;
   border-radius: 20px;
