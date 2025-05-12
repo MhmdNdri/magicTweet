@@ -5,9 +5,6 @@ const OPENAI_MODEL = "gpt-4.1-nano";
 
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Magic Tweet: Background script received message:", request);
-  console.log("Magic Tweet: Message sender:", sender);
-
   if (request.action === "generateSuggestions") {
     if (!request.text || !request.tone) {
       console.error("Missing required parameters in request:", request);
@@ -36,8 +33,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Function to get suggestions from the API
 async function getSuggestions(tweetText, tone) {
-  console.log("Magic Tweet: Getting suggestions for tone:", tone);
-
   try {
     const response = await fetch(OPENAI_API_URL, {
       method: "POST",
@@ -85,12 +80,9 @@ async function getSuggestions(tweetText, tone) {
 
 // Get AI suggestions for the tweet
 async function getAISuggestions(text, tone) {
-  console.log("Generating suggestions for text:", text);
-  console.log("Selected tone:", tone);
-
   if (!OPENAI_API_KEY) {
-    console.error("OpenAI API key is missing");
-    return { error: "OpenAI API key is missing" };
+    console.error("API key is missing");
+    return { error: "API key is missing" };
   }
 
   if (!text || !tone) {
@@ -98,7 +90,7 @@ async function getAISuggestions(text, tone) {
     return { error: "Missing required parameters" };
   }
 
-  const prompt = `Rewrite this tweet in a ${tone} tone. Keep each version under 280 characters. Write in the same language as the input. Provide exactly 4 variations:
+  const prompt = `Rewrite this tweet in a ${tone} tone. Keep each version under 280 characters. Write in the same language as the input. Provide exactly 5 variations:
 
 "${text}"
 
@@ -121,7 +113,7 @@ Format:
         messages: [
           {
             role: "system",
-            content: `You are a tweet enhancement assistant. Rewrite tweets in a ${tone} tone while maintaining the core message. Always provide exactly 4 variations. Write in the same language as the input text. Keep responses concise and focused.`,
+            content: `You are a tweet enhancement assistant. Rewrite tweets in a ${tone} tone while maintaining the core message. Always provide exactly 5 variations. Write in the same language as the input text. Keep responses concise and focused.`,
           },
           {
             role: "user",
@@ -133,11 +125,11 @@ Format:
       }),
     });
 
-    console.log("Received response from OpenAI API");
+    console.log("Received response from API");
 
     if (!response.ok) {
       const error = await response.json();
-      console.error("OpenAI API error response:", error);
+      console.error("API error response:", error);
       return {
         error: error.error?.message || "Failed to generate suggestions",
         details: error,
@@ -194,10 +186,10 @@ function parseSuggestions(content, tone) {
   console.log("Extracted variations:", variations);
 
   // Ensure we have exactly 4 variations
-  while (variations.length < 4) {
+  while (variations.length < 5) {
     variations.push("");
   }
-  variations.splice(4); // Trim to 4 if more
+  variations.splice(5); // Trim to 4 if more
 
   suggestions[tone] = variations;
   console.log("Final suggestions object:", suggestions);
