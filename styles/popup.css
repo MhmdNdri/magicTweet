@@ -79,19 +79,19 @@ header {
 }
 
 .logo {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transform: scale(1.1);
   transition: transform 0.2s ease;
 }
 
 .logo:hover {
-  transform: scale(1.05);
+  transform: scale(1.2);
 }
 
 [data-theme="dark"] .logo {
-  background: linear-gradient(120deg, var(--primary-color), #38b6ff);
-  border-radius: 50%;
+  background: transparent;
 }
 
 h1 {
