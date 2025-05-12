@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" dir="ltr">
 <head>
-  <title>Magic Tweet</title>
+  <title data-i18n="popupTitle">__MSG_popupTitle__</title>
   <link rel="stylesheet" href="styles/popup.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
@@ -11,80 +11,84 @@
   <div class="container">
     <header>
       <div class="header-content">
-        <img src="icons/icon.svg" alt="Magic Tweet" class="logo">
-        <h1>Magic Tweet</h1>
+        <img src="icons/icon.svg" alt="__MSG_popupLogoAlt__" class="logo" data-i18n-alt="popupLogoAlt">
+        <h1 data-i18n="popupHeader">__MSG_popupHeader__</h1>
       </div>
       <div class="header-actions">
-        <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
-          <span class="material-icons-round">dark_mode</span>
+        <button id="languageToggle" class="icon-button lang-button" aria-label="__MSG_languageToggleLabel__" data-i18n-label="languageToggleLabel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-svg"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <span id="currentLangText" class="lang-text">EN</span> </button>
+        <button id="themeToggle" class="icon-button theme-toggle" aria-label="__MSG_themeToggleLabel__" data-i18n-label="themeToggleLabel">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-svg icon-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
       </div>
     </header>
 
     <div class="main-content">
       <div class="welcome-section">
-        <h2>Transform Your Tweets</h2>
-        <p class="description">Enhance your social media presence with AI-powered tone suggestions that make your tweets stand out.</p>
+        <h2 data-i18n="welcomeHeading">__MSG_welcomeHeading__</h2>
+        <p class="description" data-i18n="welcomeDescription">__MSG_welcomeDescription__</p>
       </div>
 
       <div class="how-to-use">
-        <h3>How It Works</h3>
+        <h3 data-i18n="howItWorksHeading">__MSG_howItWorksHeading__</h3>
         <ol class="steps">
           <li>
             <span class="material-icons-round">edit</span>
             <div>
-              <strong>Start Composing</strong>
-              <p>Begin writing your tweet in the Twitter composer</p>
+              <strong data-i18n="step1Heading">__MSG_step1Heading__</strong>
+              <p data-i18n="step1Description">__MSG_step1Description__</p>
             </div>
           </li>
           <li>
             <span class="material-icons-round">auto_fix_high</span>
             <div>
-              <strong>Activate Magic Tweet</strong>
-              <p>Click the floating wand icon that appears</p>
+              <strong data-i18n="step2Heading">__MSG_step2Heading__</strong>
+              <p data-i18n="step2Description">__MSG_step2Description__</p>
             </div>
           </li>
           <li>
             <span class="material-icons-round">style</span>
             <div>
-              <strong>Select Your Style</strong>
-              <p>Choose a tone that matches your intention</p>
+              <strong data-i18n="step3Heading">__MSG_step3Heading__</strong>
+              <p data-i18n="step3Description">__MSG_step3Description__</p>
             </div>
           </li>
         </ol>
       </div>
 
       <div class="available-tones">
-        <h3>Available Styles</h3>
+        <h3 data-i18n="availableStylesHeading">__MSG_availableStylesHeading__</h3>
         <div class="tone-grid">
           <div class="tone-item">
             <span class="material-icons-round">sentiment_very_satisfied</span>
-            <span>Sarcastic</span>
+            <span data-i18n="styleSarcastic">__MSG_styleSarcastic__</span>
           </div>
           <div class="tone-item">
             <span class="material-icons-round">celebration</span>
-            <span>Playful</span>
+            <span data-i18n="stylePlayful">__MSG_stylePlayful__</span>
           </div>
           <div class="tone-item">
             <span class="material-icons-round">favorite</span>
-            <span>Romantic</span>
+            <span data-i18n="styleRomantic">__MSG_styleRomantic__</span>
           </div>
           <div class="tone-item">
             <span class="material-icons-round">auto_stories</span>
-            <span>Poetic</span>
+            <span data-i18n="stylePoetic">__MSG_stylePoetic__</span>
           </div>
           <div class="tone-item">
             <span class="material-icons-round">emoji_emotions</span>
-            <span>Uplifting</span>
+            <span data-i18n="styleUplifting">__MSG_styleUplifting__</span>
           </div>
           <div class="tone-item">
             <span class="material-icons-round">theater_comedy</span>
-            <span>Theatrical</span>
+            <span data-i18n="styleTheatrical">__MSG_styleTheatrical__</span>
           </div>
         </div>
       </div>
     </div>
   </div>
   <script src="scripts/theme.js"></script>
+  <script src="scripts/languageSwitcher.js"></script>
 </body>
 </html>

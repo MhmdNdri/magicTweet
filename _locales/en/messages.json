@@ -1,0 +1,206 @@
+{
+  "extensionName": {
+    "message": "Magic Tweet",
+    "description": "The name of the extension."
+  },
+  "extensionDescription": {
+    "message": "AI-powered tweet suggestions with different tones",
+    "description": "The description of the extension."
+  },
+  "popupTitle": {
+    "message": "Magic Tweet",
+    "description": "The title of the popup window."
+  },
+  "popupLogoAlt": {
+    "message": "Magic Tweet Logo",
+    "description": "Alt text for the logo image in the popup."
+  },
+  "popupHeader": {
+    "message": "Magic Tweet",
+    "description": "Main heading in the popup."
+  },
+  "themeToggleLabel": {
+    "message": "Toggle dark mode",
+    "description": "Accessibility label for the theme toggle button."
+  },
+  "welcomeHeading": {
+    "message": "Transform Your Tweets",
+    "description": "Welcome heading in the popup."
+  },
+  "welcomeDescription": {
+    "message": "Enhance your social media presence with AI-powered tone suggestions that make your tweets stand out.",
+    "description": "Welcome description paragraph in the popup."
+  },
+  "howItWorksHeading": {
+    "message": "How It Works",
+    "description": "Heading for the 'How it works' section."
+  },
+  "step1Heading": {
+    "message": "Start Composing",
+    "description": "Heading for step 1."
+  },
+  "step1Description": {
+    "message": "Begin writing your tweet in the Twitter composer",
+    "description": "Description for step 1."
+  },
+  "step2Heading": {
+    "message": "Activate Magic Tweet",
+    "description": "Heading for step 2."
+  },
+  "step2Description": {
+    "message": "Click the floating wand icon that appears",
+    "description": "Description for step 2."
+  },
+  "step3Heading": {
+    "message": "Select Your Style",
+    "description": "Heading for step 3."
+  },
+  "step3Description": {
+    "message": "Choose a tone that matches your intention",
+    "description": "Description for step 3."
+  },
+  "availableStylesHeading": {
+    "message": "Available Styles",
+    "description": "Heading for the 'Available Styles' section."
+  },
+  "styleSarcastic": {
+    "message": "Sarcastic",
+    "description": "Name for the Sarcastic style."
+  },
+  "stylePlayful": {
+    "message": "Playful",
+    "description": "Name for the Playful style."
+  },
+  "styleRomantic": {
+    "message": "Romantic",
+    "description": "Name for the Romantic style."
+  },
+  "stylePoetic": {
+    "message": "Poetic",
+    "description": "Name for the Poetic style."
+  },
+  "styleUplifting": {
+    "message": "Uplifting",
+    "description": "Name for the Uplifting style."
+  },
+  "styleTheatrical": {
+    "message": "Theatrical",
+    "description": "Name for the Theatrical style."
+  },
+  "tonePlayfulFunny": {
+    "message": "Playful/Funny",
+    "description": "Tone option: Playful/Funny"
+  },
+  "toneRomanticSoft": {
+    "message": "Romantic/Soft",
+    "description": "Tone option: Romantic/Soft"
+  },
+  "toneMelancholicPoetic": {
+    "message": "Melancholic/Poetic",
+    "description": "Tone option: Melancholic/Poetic"
+  },
+  "toneHopefulUplifting": {
+    "message": "Hopeful/Uplifting",
+    "description": "Tone option: Hopeful/Uplifting"
+  },
+  "toneCynicalDarkHumor": {
+    "message": "Cynical/Dark Humor",
+    "description": "Tone option: Cynical/Dark Humor"
+  },
+  "toneOverdramaticTheatrical": {
+    "message": "Overdramatic/Theatrical",
+    "description": "Tone option: Overdramatic/Theatrical"
+  },
+  "toneMinimalistDry": {
+    "message": "Minimalist/Dry",
+    "description": "Tone option: Minimalist/Dry"
+  },
+  "toneInspirationalMotivational": {
+    "message": "Inspirational/Motivational",
+    "description": "Tone option: Inspirational/Motivational"
+  },
+  "errorRefreshExtension": {
+    "message": "Magic Tweet extension needs to be refreshed. Please reload the page.",
+    "description": "Error message asking user to reload page for the extension."
+  },
+  "errorReloadToRestore": {
+    "message": "Please reload the page to restore the extension.",
+    "description": "Error message asking user to reload page to restore extension after an issue."
+  },
+  "suggestionPanelHeader": {
+    "message": "Magic Tweet Suggestions",
+    "description": "Header for the suggestions panel."
+  },
+  "toneSelectionPanelHeader": {
+    "message": "Select a Tone",
+    "description": "Header for the tone selection panel."
+  },
+  "loadingSuggestions": {
+    "message": "Generating suggestions...",
+    "description": "Text shown while suggestions are loading."
+  },
+  "errorPrefix": {
+    "message": "Error: ",
+    "description": "Prefix for displaying an error message."
+  },
+  "tryAgainButton": {
+    "message": "Try Again",
+    "description": "Text for the try again button."
+  },
+  "errorMissingInfo": {
+    "message": "Missing required information",
+    "description": "Error message when text or tone is missing for suggestion generation."
+  },
+  "errorNoSuggestions": {
+    "message": "No suggestions generated",
+    "description": "Error message when the generation process produced no suggestions."
+  },
+  "errorFailedSuggestions": {
+    "message": "Failed to generate suggestions",
+    "description": "Generic error message when suggestion generation fails."
+  },
+  "errorNoSuggestionsAvailable": {
+    "message": "No suggestions available",
+    "description": "Error message displayed in the panel when no suggestions can be shown."
+  },
+  "defaultSuggestionTone": {
+    "message": "Suggestion",
+    "description": "Default tone name used if a specific tone isn't provided for a suggestion."
+  },
+  "copyButton": {
+    "message": "Copy",
+    "description": "Text on the copy button."
+  },
+  "copiedButton": {
+    "message": "Copied!",
+    "description": "Text shown on the copy button after success."
+  },
+  "copyFailedButton": {
+    "message": "Failed to copy",
+    "description": "Text shown on the copy button after failure."
+  },
+  "errorDisplayingSuggestions": {
+    "message": "Error displaying suggestions",
+    "description": "Error message shown if suggestions cannot be displayed in the UI."
+  },
+  "errorMissingParams": {
+    "message": "Missing required parameters",
+    "description": "Error message when required parameters (text, tone) are missing."
+  },
+  "errorApiKeyMissing": {
+    "message": "API key is missing",
+    "description": "Error message shown when the OpenAI API key is not configured."
+  },
+  "errorInvalidApiResponse": {
+    "message": "Invalid response format from API",
+    "description": "Error message when the API response structure is unexpected."
+  },
+  "errorParseSuggestions": {
+    "message": "Failed to parse suggestions",
+    "description": "Error message when suggestions could not be parsed from the API response."
+  },
+  "languageToggleLabel": {
+    "message": "Toggle language (English/Persian)",
+    "description": "Accessibility label for the language toggle button."
+  }
+}

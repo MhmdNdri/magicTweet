@@ -291,30 +291,55 @@ h3::before {
   color: var(--text-color);
 }
 
-/* Theme toggle button */
-.theme-toggle {
+.header-actions {
   display: flex;
   align-items: center;
+  gap: 10px; /* Add some space between buttons */
+}
+
+.icon-button {
+  display: flex;
+  flex-direction: column; /* Stack icon and text vertically */
+  align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px; /* Slightly wider */
+  height: 44px; /* Slightly taller */
   border: none;
-  border-radius: 50%;
-  background-color: var(--primary-bg-color);
-  color: var(--primary-color);
+  border-radius: 8px; /* Less rounded */
+  background-color: var(--secondary-bg-color);
+  color: var(--secondary-text-color);
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  padding: 4px; /* Add padding */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color);
 }
 
-.theme-toggle:hover {
-  transform: rotate(15deg);
-  background-color: var(--primary-color);
-  color: white;
+.icon-button:hover {
+  background-color: var(--hover-bg-color);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-.theme-toggle .material-icons {
-  font-size: 20px;
+.icon-button .icon-svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.8; /* Slightly thinner stroke */
+  margin-bottom: 2px; /* Space between icon and text */
+}
+
+.lang-button .lang-text {
+  font-size: 10px; /* Smaller font size */
+  font-weight: 600;
+  line-height: 1;
+  color: var(--secondary-text-color);
+  transition: color 0.2s ease;
+}
+
+.lang-button:hover .lang-text {
+  color: var(--primary-color);
 }
 
 /* Scrollbar styling */
@@ -335,3 +360,55 @@ h3::before {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
 }
+
+/* RTL Specific Styles */
+[dir="rtl"] .header-content {
+  /* If logo should be on the right */
+  /* order: 1; */
+}
+
+[dir="rtl"] .header-content h1 {
+  /* Potentially adjust spacing if logo order changes */
+  /* margin-right: 12px; */
+  /* margin-left: 0; */
+}
+
+[dir="rtl"] .header-actions {
+  /* Ensure buttons stay on the other side */
+  /* order: 0; */
+}
+
+[dir="rtl"] h3::before {
+  margin-left: 8px; /* Add space after the decoration */
+  margin-right: 0;
+}
+
+[dir="rtl"] h3 {
+  gap: 0; /* Reset gap if ::before provides it */
+}
+
+[dir="rtl"] .steps li {
+  /* If icons should be on the right */
+  /* flex-direction: row-reverse; */
+}
+
+[dir="rtl"] .steps li .material-icons-round {
+  /* Adjust margins if direction reverses */
+  /* margin-left: 16px; */
+  /* margin-right: 0; */
+}
+
+[dir="rtl"] .steps li::before {
+  left: auto;
+  right: 0;
+}
+
+[dir="rtl"] .lang-button .icon-svg {
+  /* Potentially adjust if needed for RTL */
+}
+
+[dir="rtl"] .lang-button .lang-text {
+  /* Adjust text alignment or spacing if needed */
+}
+
+/* Add any other necessary RTL adjustments below */

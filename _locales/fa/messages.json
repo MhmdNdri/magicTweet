@@ -1,0 +1,206 @@
+{
+  "extensionName": {
+    "message": "مجیک توییت",
+    "description": "نام افزونه."
+  },
+  "extensionDescription": {
+    "message": "پیشنهادات توییت مبتنی بر هوش مصنوعی با لحن های مختلف",
+    "description": "توضیحات افزونه."
+  },
+  "popupTitle": {
+    "message": "مجیک توییت",
+    "description": "عنوان پنجره پاپ آپ."
+  },
+  "popupLogoAlt": {
+    "message": "لوگوی مجیک توییت",
+    "description": "متن جایگزین برای تصویر لوگو در پاپ آپ."
+  },
+  "popupHeader": {
+    "message": "مجیک توییت",
+    "description": "عنوان اصلی در پاپ آپ."
+  },
+  "themeToggleLabel": {
+    "message": "تغییر حالت تاریک",
+    "description": "برچسب دسترسی پذیری برای دکمه تغییر تم."
+  },
+  "welcomeHeading": {
+    "message": "توییت های خود را متحول کنید",
+    "description": "عنوان خوش آمدگویی در پاپ آپ."
+  },
+  "welcomeDescription": {
+    "message": "حضور خود در رسانه های اجتماعی را با پیشنهادات لحن مبتنی بر هوش مصنوعی که باعث برجسته شدن توییت های شما می شود، تقویت کنید.",
+    "description": "پاراگراف توضیحات خوش آمدگویی در پاپ آپ."
+  },
+  "howItWorksHeading": {
+    "message": "چگونه کار می کند",
+    "description": "عنوان بخش 'چگونه کار می کند'."
+  },
+  "step1Heading": {
+    "message": "شروع به نوشتن کنید",
+    "description": "عنوان مرحله ۱."
+  },
+  "step1Description": {
+    "message": "شروع به نوشتن توییت خود در ویرایشگر توییتر کنید",
+    "description": "توضیحات مرحله ۱."
+  },
+  "step2Heading": {
+    "message": "مجیک توییت را فعال کنید",
+    "description": "عنوان مرحله ۲."
+  },
+  "step2Description": {
+    "message": "روی آیکون شناور عصای جادویی که ظاهر می شود کلیک کنید",
+    "description": "توضیحات مرحله ۲."
+  },
+  "step3Heading": {
+    "message": "سبک خود را انتخاب کنید",
+    "description": "عنوان مرحله ۳."
+  },
+  "step3Description": {
+    "message": "لحنی را انتخاب کنید که با قصد شما مطابقت دارد",
+    "description": "توضیحات مرحله ۳."
+  },
+  "availableStylesHeading": {
+    "message": "سبک های موجود",
+    "description": "عنوان بخش 'سبک های موجود'."
+  },
+  "styleSarcastic": {
+    "message": "کنایه آمیز",
+    "description": "نام برای سبک کنایه آمیز."
+  },
+  "stylePlayful": {
+    "message": "بازیگوش",
+    "description": "نام برای سبک بازیگوش."
+  },
+  "styleRomantic": {
+    "message": "رمانتیک",
+    "description": "نام برای سبک رمانتیک."
+  },
+  "stylePoetic": {
+    "message": "شاعرانه",
+    "description": "نام برای سبک شاعرانه."
+  },
+  "styleUplifting": {
+    "message": "روحیه بخش",
+    "description": "نام برای سبک روحیه بخش."
+  },
+  "styleTheatrical": {
+    "message": "نمایشی",
+    "description": "نام برای سبک نمایشی."
+  },
+  "tonePlayfulFunny": {
+    "message": "بازیگوش/بامزه",
+    "description": "گزینه لحن: بازیگوش/بامزه"
+  },
+  "toneRomanticSoft": {
+    "message": "رمانتیک/لطیف",
+    "description": "گزینه لحن: رمانتیک/لطیف"
+  },
+  "toneMelancholicPoetic": {
+    "message": "مالیخولیایی/شاعرانه",
+    "description": "گزینه لحن: مالیخولیایی/شاعرانه"
+  },
+  "toneHopefulUplifting": {
+    "message": "امیدوارکننده/روحیه بخش",
+    "description": "گزینه لحن: امیدوارکننده/روحیه بخش"
+  },
+  "toneCynicalDarkHumor": {
+    "message": "کلبی مسلک/طنز سیاه",
+    "description": "گزینه لحن: کلبی مسلک/طنز سیاه"
+  },
+  "toneOverdramaticTheatrical": {
+    "message": "بیش از حد نمایشی/تئاتری",
+    "description": "گزینه لحن: بیش از حد نمایشی/تئاتری"
+  },
+  "toneMinimalistDry": {
+    "message": "مینیمالیست/خشک",
+    "description": "گزینه لحن: مینیمالیست/خشک"
+  },
+  "toneInspirationalMotivational": {
+    "message": "الهام بخش/انگیزشی",
+    "description": "گزینه لحن: الهام بخش/انگیزشی"
+  },
+  "errorRefreshExtension": {
+    "message": "افزونه مجیک توییت نیاز به بازخوانی دارد. لطفاً صفحه را دوباره بارگذاری کنید.",
+    "description": "پیام خطا که از کاربر می‌خواهد صفحه را برای افزونه دوباره بارگذاری کند."
+  },
+  "errorReloadToRestore": {
+    "message": "لطفاً برای بازیابی افزونه، صفحه را دوباره بارگذاری کنید.",
+    "description": "پیام خطا که از کاربر می‌خواهد پس از بروز مشکل، صفحه را برای بازیابی افزونه دوباره بارگذاری کند."
+  },
+  "suggestionPanelHeader": {
+    "message": "پیشنهادات مجیک توییت",
+    "description": "عنوان پنل پیشنهادات."
+  },
+  "toneSelectionPanelHeader": {
+    "message": "یک لحن انتخاب کنید",
+    "description": "عنوان پنل انتخاب لحن."
+  },
+  "loadingSuggestions": {
+    "message": "در حال ایجاد پیشنهادات...",
+    "description": "متن نمایش داده شده هنگام بارگذاری پیشنهادات."
+  },
+  "errorPrefix": {
+    "message": "خطا: ",
+    "description": "پیشوند برای نمایش پیام خطا."
+  },
+  "tryAgainButton": {
+    "message": "دوباره تلاش کنید",
+    "description": "متن دکمه تلاش مجدد."
+  },
+  "errorMissingInfo": {
+    "message": "اطلاعات مورد نیاز ناقص است",
+    "description": "پیام خطا هنگامی که متن یا لحن برای تولید پیشنهاد موجود نیست."
+  },
+  "errorNoSuggestions": {
+    "message": "هیچ پیشنهادی تولید نشد",
+    "description": "پیام خطا هنگامی که فرآیند تولید هیچ پیشنهادی ارائه نکرده است."
+  },
+  "errorFailedSuggestions": {
+    "message": "تولید پیشنهادات ناموفق بود",
+    "description": "پیام خطای عمومی هنگامی که تولید پیشنهاد با شکست مواجه می شود."
+  },
+  "errorNoSuggestionsAvailable": {
+    "message": "هیچ پیشنهادی در دسترس نیست",
+    "description": "پیام خطا نمایش داده شده در پنل هنگامی که هیچ پیشنهادی قابل نمایش نیست."
+  },
+  "defaultSuggestionTone": {
+    "message": "پیشنهاد",
+    "description": "نام لحن پیش فرض استفاده شده اگر لحن خاصی برای پیشنهاد ارائه نشده باشد."
+  },
+  "copyButton": {
+    "message": "کپی",
+    "description": "متن روی دکمه کپی."
+  },
+  "copiedButton": {
+    "message": "کپی شد!",
+    "description": "متن نمایش داده شده روی دکمه کپی پس از موفقیت."
+  },
+  "copyFailedButton": {
+    "message": "کپی ناموفق بود",
+    "description": "متن نمایش داده شده روی دکمه کپی پس از شکست."
+  },
+  "errorDisplayingSuggestions": {
+    "message": "خطا در نمایش پیشنهادات",
+    "description": "پیام خطا نمایش داده شده اگر پیشنهادات نتوانند در رابط کاربری نمایش داده شوند."
+  },
+  "errorMissingParams": {
+    "message": "پارامترهای مورد نیاز وجود ندارند",
+    "description": "پیام خطا هنگامی که پارامترهای مورد نیاز (متن، لحن) وجود ندارند."
+  },
+  "errorApiKeyMissing": {
+    "message": "کلید API وجود ندارد",
+    "description": "پیام خطا نمایش داده شده هنگامی که کلید OpenAI API پیکربندی نشده است."
+  },
+  "errorInvalidApiResponse": {
+    "message": "قالب پاسخ نامعتبر از API",
+    "description": "پیام خطا هنگامی که ساختار پاسخ API غیرمنتظره است."
+  },
+  "errorParseSuggestions": {
+    "message": "تجزیه پیشنهادات ناموفق بود",
+    "description": "پیام خطا هنگامی که پیشنهادات نتوانستند از پاسخ API تجزیه شوند."
+  },
+  "languageToggleLabel": {
+    "message": "تغییر زبان (انگلیسی/فارسی)",
+    "description": "برچسب دسترسی پذیری برای دکمه تغییر زبان."
+  }
+}

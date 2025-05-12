@@ -1,24 +1,332 @@
 // Create a namespace for our extension
 window.MagicTweetExtension = {
   isInitialized: false,
-  TONE_OPTIONS: {
-    SARCASM: "Sarcastic",
-    PLAYFUL: "Playful/Funny",
-    ROMANTIC: "Romantic/Soft",
-    MELANCHOLIC: "Melancholic/Poetic",
-    HOPEFUL: "Hopeful/Uplifting",
-    CYNICAL: "Cynical/Dark Humor",
-    DRAMATIC: "Overdramatic/Theatrical",
-    MINIMALIST: "Minimalist/Dry",
-    INSPIRATIONAL: "Inspirational/Motivational",
-  },
+  currentLang: "en", // Default language
+  currentMessages: {},
+  // TONE_OPTIONS will be populated after messages load
+  TONE_OPTIONS: {},
 };
+
+// These keys will be sent to the API. Their corresponding English messages will be used in the prompt.
+const API_TONE_MESSAGE_KEYS = {
+  SARCASM: "styleSarcastic",
+  PLAYFUL: "tonePlayfulFunny",
+  ROMANTIC: "toneRomanticSoft",
+  MELANCHOLIC: "toneMelancholicPoetic",
+  HOPEFUL: "toneHopefulUplifting",
+  CYNICAL: "toneCynicalDarkHumor",
+  DRAMATIC: "toneOverdramaticTheatrical",
+  MINIMALIST: "toneMinimalistDry",
+  INSPIRATIONAL: "toneInspirationalMotivational",
+};
+
+// Function to fetch messages for a specific language (now requests from background)
+async function loadMessages(lang) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { action: "getMessages", lang: lang },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            `ContentScript: Error requesting messages for ${lang}:`,
+            chrome.runtime.lastError.message
+          );
+          return reject(chrome.runtime.lastError);
+        }
+        if (response && response.error) {
+          console.error(
+            `ContentScript: Received error from background for ${lang}:`,
+            response.error
+          );
+          // Try to resolve with English if initial request for another lang failed at background but background sent english back
+          if (response.langUsed === "en" && response.messages) {
+            console.warn(
+              `ContentScript: Failed to get ${lang}, background provided English fallback.`
+            );
+            window.MagicTweetExtension.currentLang = "en"; // Explicitly set to 'en' as it's a fallback
+            return resolve(response.messages);
+          }
+          return reject(new Error(response.error));
+        }
+        if (response && response.messages) {
+          if (response.langUsed && response.langUsed !== lang) {
+            console.warn(
+              `ContentScript: Requested ${lang} but received ${response.langUsed} from background.`
+            );
+            window.MagicTweetExtension.currentLang = response.langUsed; // Update lang if background used a fallback
+          }
+          return resolve(response.messages);
+        }
+        // If no messages and no error, something unexpected happened.
+        console.error(
+          `ContentScript: No messages or error in response for ${lang}. Response:`,
+          response
+        );
+        return reject(
+          new Error(`Unexpected response from background for ${lang}`)
+        );
+      }
+    );
+  });
+}
+
+// Function to get a localized string
+function getLocalizedString(key, fallback = "") {
+  const msgData = window.MagicTweetExtension.currentMessages[key];
+  return msgData ? msgData.message : fallback || key; // Return key if no fallback
+}
+
+// Function to apply translations to dynamically created elements
+function applyContentScriptTranslations() {
+  // Update panel headers
+  const suggestionPanelHeader = document.querySelector(
+    "#magic-tweet-panel .magic-tweet-header span"
+  );
+  if (suggestionPanelHeader) {
+    suggestionPanelHeader.textContent = getLocalizedString(
+      "suggestionPanelHeader"
+    );
+  }
+  const tonePanelHeader = document.querySelector(
+    "#magic-tweet-tone-panel .magic-tweet-header span"
+  );
+  if (tonePanelHeader) {
+    tonePanelHeader.textContent = getLocalizedString(
+      "toneSelectionPanelHeader"
+    );
+  }
+
+  // Update tone buttons (regenerate them with new text)
+  const tonePanelContent = document.querySelector(
+    "#magic-tweet-tone-panel .magic-tweet-suggestions"
+  );
+  if (tonePanelContent) {
+    // Iterate over the API_TONE_MESSAGE_KEYS to ensure consistent button order and data
+    let toneButtonsHtml = "";
+    for (const internalKey in API_TONE_MESSAGE_KEYS) {
+      const messageKey = API_TONE_MESSAGE_KEYS[internalKey];
+      const localizedText = getLocalizedString(messageKey); // Get current localized text
+      toneButtonsHtml += `
+        <button class="magic-tweet-tone-btn" 
+          style="width: 100%; padding: 10px; margin-bottom: 8px; background: #FFFFFF; border: 1px solid #1DA1F2; border-radius: 20px; color: #1DA1F2; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+          data-tone-api-key="${messageKey}">${localizedText}</button>
+      `;
+    }
+    tonePanelContent.innerHTML = toneButtonsHtml;
+    addToneButtonListeners(document.getElementById("magic-tweet-tone-panel"));
+    const isDark =
+      document.documentElement.getAttribute("data-theme") === "dark";
+    applyThemeToTonePanel(
+      document.getElementById("magic-tweet-tone-panel"),
+      isDark
+    );
+  }
+
+  const iconImg = document.querySelector("#magic-tweet-icon img");
+  if (iconImg) {
+    iconImg.alt = getLocalizedString("extensionName");
+  }
+
+  // Note: Existing suggestions/errors in panels will be updated if showError/showLoading/displaySuggestions
+  // are called again after a language change (e.g., by clicking Try Again or generating new suggestions).
+  // We don't explicitly re-translate existing suggestions here, as that would require re-fetching.
+}
+
+// Function to add tone button listeners (extracted for reuse)
+function addToneButtonListeners(tonePanel) {
+  if (!tonePanel) return;
+  const suggestionPanel = document.getElementById("magic-tweet-panel");
+  tonePanel.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
+    button.replaceWith(button.cloneNode(true));
+    const newButton = tonePanel.querySelector(
+      `[data-tone-api-key="${button.dataset.toneApiKey}"]`
+    );
+    if (!newButton) return;
+
+    newButton.addEventListener("mouseover", () => {
+      newButton.style.backgroundColor = "#1DA1F2";
+      newButton.style.color = "#FFFFFF";
+    });
+    newButton.addEventListener("mouseout", () => {
+      const isDark =
+        document.documentElement.getAttribute("data-theme") === "dark";
+      newButton.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+      newButton.style.color = "#1DA1F2";
+    });
+
+    newButton.addEventListener("click", async () => {
+      const toneApiKey = newButton.dataset.toneApiKey; // THIS IS THE ENGLISH MESSAGE KEY
+      const tweetCompose = findTweetComposer();
+      const text = tweetCompose
+        ? tweetCompose.textContent || tweetCompose.innerText
+        : null;
+
+      if (!text || !toneApiKey) {
+        showError(suggestionPanel, getLocalizedString("errorMissingInfo"));
+        return;
+      }
+
+      // Hide tone panel and show suggestion panel
+      tonePanel.style.display = "none";
+      if (suggestionPanel) {
+        suggestionPanel.style.display = "block";
+        suggestionPanel.style.position = "fixed";
+        suggestionPanel.style.right = "38%";
+        suggestionPanel.style.top = "calc(14% + 50px)";
+        suggestionPanel.style.zIndex = "10000";
+        showLoadingState(suggestionPanel);
+      }
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: "generateSuggestions",
+          text: text,
+          tone: toneApiKey, // Send the English message key
+        });
+
+        if (!suggestionPanel) return; // Exit if panel removed
+
+        if (response && response.suggestions) {
+          const suggestions = response.suggestions;
+          if (
+            typeof suggestions === "object" &&
+            Object.keys(suggestions).length > 0
+          ) {
+            displaySuggestions(
+              suggestions,
+              suggestionPanel.querySelector(".magic-tweet-suggestions")
+            );
+          } else {
+            showError(
+              suggestionPanel,
+              getLocalizedString("errorNoSuggestions")
+            );
+          }
+        } else if (response && response.error) {
+          showError(suggestionPanel, response.error);
+        } else {
+          showError(
+            suggestionPanel,
+            getLocalizedString("errorFailedSuggestions")
+          );
+        }
+      } catch (error) {
+        console.error("Error generating suggestions:", error);
+        handleExtensionError(error);
+        if (suggestionPanel) {
+          showError(
+            suggestionPanel,
+            getLocalizedString("errorFailedSuggestions")
+          );
+        }
+      }
+    });
+  });
+}
+
+// Helper to apply theme updates to tone panel elements
+function applyThemeToTonePanel(panel, isDark) {
+  if (!panel) return;
+  panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+  panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
+  panel.style.color = isDark ? "#FFFFFF" : "#14171A";
+
+  const buttons = panel.querySelectorAll(".magic-tweet-tone-btn");
+  buttons.forEach((button) => {
+    button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
+    button.style.borderColor = "#1DA1F2";
+    button.style.color = "#1DA1F2";
+  });
+
+  const header = panel.querySelector(".magic-tweet-header");
+  if (header) {
+    header.style.borderBottomColor = isDark ? "#38444D" : "#E1E8ED";
+  }
+}
+
+// Function to populate TONE_OPTIONS from loaded messages
+function populateToneOptions() {
+  // TONE_OPTIONS stores the *localized display text* for the buttons
+  window.MagicTweetExtension.TONE_OPTIONS = {
+    SARCASM: getLocalizedString(API_TONE_MESSAGE_KEYS.SARCASM, "Sarcastic"),
+    PLAYFUL: getLocalizedString(API_TONE_MESSAGE_KEYS.PLAYFUL, "Playful/Funny"),
+    ROMANTIC: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.ROMANTIC,
+      "Romantic/Soft"
+    ),
+    MELANCHOLIC: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.MELANCHOLIC,
+      "Melancholic/Poetic"
+    ),
+    HOPEFUL: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.HOPEFUL,
+      "Hopeful/Uplifting"
+    ),
+    CYNICAL: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.CYNICAL,
+      "Cynical/Dark Humor"
+    ),
+    DRAMATIC: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.DRAMATIC,
+      "Overdramatic/Theatrical"
+    ),
+    MINIMALIST: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.MINIMALIST,
+      "Minimalist/Dry"
+    ),
+    INSPIRATIONAL: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.INSPIRATIONAL,
+      "Inspirational/Motivational"
+    ),
+  };
+}
+
+// Function to set the UI language
+async function setContentScriptLanguage(lang) {
+  const messages = await loadMessages(lang);
+  if (messages) {
+    window.MagicTweetExtension.currentLang = lang;
+    window.MagicTweetExtension.currentMessages = messages;
+    populateToneOptions(); // Repopulate TONE_OPTIONS with new language
+    applyContentScriptTranslations(); // Apply translations to existing UI elements
+    // The panels and icons might need to be re-created or explicitly updated if they are already on the page
+    const icon = document.getElementById("magic-tweet-icon");
+    if (icon && icon.style.display !== "none") {
+      // If icon is visible, re-run parts of its setup that might depend on language
+      // This is a bit of a heavy-handed approach, might need refinement
+      const tweetCompose = findTweetComposer();
+      if (tweetCompose) addIconToComposer(tweetCompose); // Re-adds icon, which will use new localized alt text
+    }
+  } else {
+    console.warn(`ContentScript: Could not set language to ${lang}.`);
+  }
+}
 
 // Listen for theme changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === "local" && changes.userLanguage) {
+    const newLang = changes.userLanguage.newValue;
+    if (newLang && newLang !== window.MagicTweetExtension.currentLang) {
+      console.log(`ContentScript: Language changed to ${newLang}`);
+      setContentScriptLanguage(newLang);
+    }
+  }
+  // Handle theme changes as before
   if (namespace === "local" && changes["magic-tweet-theme"]) {
     const newTheme = changes["magic-tweet-theme"].newValue;
     document.documentElement.setAttribute("data-theme", newTheme);
+    // Update dynamic panels theme if they exist
+    const suggestionPanel = document.getElementById("magic-tweet-panel");
+    const tonePanel = document.getElementById("magic-tweet-tone-panel");
+    if (suggestionPanel) {
+      // Assuming createSuggestionPanel has an internal updateTheme or similar
+      // For now, we call the theme update function of createSuggestionPanel if it exists and can be exposed,
+      // or we replicate its theme logic here.
+      // This part needs careful integration with how panels handle their own theme updates.
+    }
+    if (tonePanel) {
+      applyThemeToTonePanel(tonePanel, newTheme === "dark");
+    }
   }
 });
 
@@ -71,8 +379,7 @@ function handleExtensionError(error) {
     errorMessage.style.zIndex = "999999";
     errorMessage.style.fontFamily =
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    errorMessage.textContent =
-      "Magic Tweet extension needs to be refreshed. Please reload the page.";
+    errorMessage.textContent = getLocalizedString("errorRefreshExtension");
     document.body.appendChild(errorMessage);
     setTimeout(() => errorMessage.remove(), 5000);
 
@@ -101,8 +408,7 @@ function handleExtensionError(error) {
           reinitError.style.zIndex = "999999";
           reinitError.style.fontFamily =
             "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-          reinitError.textContent =
-            "Please reload the page to restore the extension.";
+          reinitError.textContent = getLocalizedString("errorReloadToRestore");
           document.body.appendChild(reinitError);
           setTimeout(() => reinitError.remove(), 5000);
         }
@@ -139,10 +445,12 @@ function createFloatingIcon() {
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0 0-1.41L12.42 4.4a.996.996 0 0 0-1.41 0L2.4 13.01a.996.996 0 0 0 0 1.41l1.41 1.41c.39.39 1.02.39 1.41 0l8.6-8.6 8.6 8.6c.39.39 1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41l-8.6-8.6z'/%3E%3C/svg%3E";
     }
 
-    icon.innerHTML = `<img src="${iconUrl}" alt="Magic Tweet" style="width: 40px; height: 40px;">`;
+    icon.innerHTML = `<img src="${iconUrl}" alt="${getLocalizedString(
+      "extensionName"
+    )}" style="width: 40px; height: 40px;">`;
 
     Object.assign(icon.style, {
-      backgroundColor: "#1DA1F2",
+      backgroundColor: "transparent",
       color: "#FFFFFF",
       borderRadius: "50%",
       cursor: "pointer",
@@ -150,7 +458,7 @@ function createFloatingIcon() {
       transition: "all 0.2s ease",
       position: "fixed",
       right: "calc(50% - 250px)",
-      top: "11%",
+      top: "12%",
       zIndex: "999999",
       width: "32px",
       height: "32px",
@@ -162,13 +470,11 @@ function createFloatingIcon() {
     icon.addEventListener("mouseover", () => {
       icon.style.transform = "translateY(-2px)";
       icon.style.boxShadow = "0 4px 12px rgba(29, 161, 242, 0.4)";
-      icon.style.backgroundColor = "#1a91da";
     });
 
     icon.addEventListener("mouseout", () => {
       icon.style.transform = "translateY(0)";
       icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
-      icon.style.backgroundColor = "#1DA1F2";
     });
 
     return icon;
@@ -276,7 +582,9 @@ function createSuggestionPanel() {
     border-bottom: 1px solid #E1E8ED;
   `;
   header.innerHTML = `
-    <span style="font-weight: 500;">Magic Tweet Suggestions</span>
+    <span style="font-weight: 500;">${getLocalizedString(
+      "suggestionPanelHeader"
+    )}</span>
     <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
   `;
 
@@ -362,7 +670,9 @@ function createToneSelectionPanel() {
     border-bottom: 1px solid #E1E8ED;
   `;
   header.innerHTML = `
-    <span style="font-weight: 500;">Select a Tone</span>
+    <span style="font-weight: 500;">${getLocalizedString(
+      "toneSelectionPanelHeader"
+    )}</span>
     <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
   `;
 
@@ -374,42 +684,24 @@ function createToneSelectionPanel() {
     padding-right: 4px;
   `;
 
-  const toneButtons = Object.entries(window.MagicTweetExtension.TONE_OPTIONS)
-    .map(
-      ([key, value]) => `
-      <button class="magic-tweet-tone-btn" style="
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 8px;
-        background: #FFFFFF;
-        border: 1px solid #1DA1F2;
-        border-radius: 20px;
-        color: #1DA1F2;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-      " data-tone="${value}">${value}</button>
-    `
-    )
-    .join("");
-
-  content.innerHTML = toneButtons;
+  // Iterate over API_TONE_MESSAGE_KEYS for consistency
+  let toneButtonsHtml = "";
+  for (const internalKey in API_TONE_MESSAGE_KEYS) {
+    const messageKey = API_TONE_MESSAGE_KEYS[internalKey];
+    const localizedText = getLocalizedString(messageKey); // Get current localized text
+    toneButtonsHtml += `
+      <button class="magic-tweet-tone-btn" 
+        style="width: 100%; padding: 10px; margin-bottom: 8px; background: #FFFFFF; border: 1px solid #1DA1F2; border-radius: 20px; color: #1DA1F2; font-weight: 500; cursor: pointer; transition: all 0.2s;"
+        data-tone-api-key="${messageKey}">${localizedText}</button>
+    `;
+  }
+  content.innerHTML = toneButtonsHtml;
 
   panel.appendChild(header);
   panel.appendChild(content);
 
-  content.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
-    button.addEventListener("mouseover", () => {
-      button.style.backgroundColor = "#1DA1F2";
-      button.style.color = "#FFFFFF";
-    });
-    button.addEventListener("mouseout", () => {
-      const isDark =
-        document.documentElement.getAttribute("data-theme") === "dark";
-      button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-      button.style.color = "#1DA1F2";
-    });
-  });
+  // Centralize listener attachment
+  addToneButtonListeners(panel);
 
   header.querySelector(".magic-tweet-close").addEventListener("click", () => {
     panel.style.display = "none";
@@ -424,7 +716,9 @@ function showLoadingState(panel) {
   content.innerHTML = `
     <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
       <div style="width: 40px; height: 40px; border: 3px solid var(--primary-color); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
-      <div style="color: var(--text-color); font-size: 14px;">Generating suggestions...</div>
+      <div style="color: var(--text-color); font-size: 14px;">${getLocalizedString(
+        "loadingSuggestions"
+      )}</div>
     </div>
     <style>
       @keyframes spin {
@@ -439,7 +733,9 @@ function showError(panel, error) {
   const content = panel.querySelector(".magic-tweet-suggestions");
   content.innerHTML = `
     <div style="padding: 20px; text-align: center;">
-      <div style="color: var(--error-color); margin-bottom: 12px; font-weight: 500;">Error: ${error}</div>
+      <div style="color: var(--error-color); margin-bottom: 12px; font-weight: 500;">${getLocalizedString(
+        "errorPrefix"
+      )}${error}</div>
       <button class="magic-tweet-retry" style="
         background: var(--primary-color);
         color: white;
@@ -449,7 +745,7 @@ function showError(panel, error) {
         cursor: pointer;
         font-weight: 500;
         transition: background 0.2s;
-      ">Try Again</button>
+      ">${getLocalizedString("tryAgainButton")}</button>
     </div>
   `;
 
@@ -548,64 +844,6 @@ function addIconToComposer(tweetCompose) {
     });
   }
 
-  // Add tone panel event listeners
-  if (tonePanel) {
-    tonePanel.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const tone = button.dataset.tone;
-        const text = tweetCompose.textContent || tweetCompose.innerText;
-
-        if (!text || !tone) {
-          showError(suggestionPanel, "Missing required information");
-          return;
-        }
-
-        // Hide tone panel and show suggestion panel
-        tonePanel.style.display = "none";
-        suggestionPanel.style.display = "block";
-        // Position the suggestion panel
-        suggestionPanel.style.position = "fixed";
-        suggestionPanel.style.right = "38%";
-        suggestionPanel.style.top = "calc(14% + 50px)";
-        suggestionPanel.style.zIndex = "10000";
-
-        showLoadingState(suggestionPanel);
-
-        try {
-          const response = await chrome.runtime.sendMessage({
-            action: "generateSuggestions",
-            text: text,
-            tone: tone,
-          });
-
-          if (response && response.suggestions) {
-            // Ensure we have valid suggestions
-            const suggestions = response.suggestions;
-            if (
-              typeof suggestions === "object" &&
-              Object.keys(suggestions).length > 0
-            ) {
-              displaySuggestions(
-                suggestions,
-                suggestionPanel.querySelector(".magic-tweet-suggestions")
-              );
-            } else {
-              showError(suggestionPanel, "No suggestions generated");
-            }
-          } else if (response && response.error) {
-            showError(suggestionPanel, response.error);
-          } else {
-            showError(suggestionPanel, "Failed to generate suggestions");
-          }
-        } catch (error) {
-          console.error("Error generating suggestions:", error);
-          handleExtensionError(error);
-          showError(suggestionPanel, "Failed to generate suggestions");
-        }
-      });
-    });
-  }
-
   // Add document click listener if not already added
   if (!document.magicTweetClickHandlerAdded) {
     document.addEventListener("click", handleOutsideClick);
@@ -618,8 +856,9 @@ function displaySuggestions(suggestions, container) {
   container.innerHTML = "";
 
   if (!suggestions) {
-    container.innerHTML =
-      '<div class="magic-tweet-error" style="color: #E0245E;">No suggestions available</div>';
+    container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+      "errorNoSuggestionsAvailable"
+    )}</div>`;
     return;
   }
 
@@ -631,7 +870,7 @@ function displaySuggestions(suggestions, container) {
       // If it's a single string, wrap it in an object
       suggestionsToDisplay = [
         {
-          tone: "Suggestion",
+          tone: getLocalizedString("defaultSuggestionTone"),
           variations: [suggestions],
         },
       ];
@@ -640,7 +879,7 @@ function displaySuggestions(suggestions, container) {
       suggestionsToDisplay = suggestions.map((suggestion) => {
         if (typeof suggestion === "string") {
           return {
-            tone: "Suggestion",
+            tone: getLocalizedString("defaultSuggestionTone"),
             variations: [suggestion],
           };
         }
@@ -665,8 +904,9 @@ function displaySuggestions(suggestions, container) {
       !Array.isArray(suggestionsToDisplay) ||
       suggestionsToDisplay.length === 0
     ) {
-      container.innerHTML =
-        '<div class="magic-tweet-error" style="color: #E0245E;">No suggestions available</div>';
+      container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+        "errorNoSuggestionsAvailable"
+      )}</div>`;
       return;
     }
 
@@ -685,7 +925,8 @@ function displaySuggestions(suggestions, container) {
         color: #14171A;
       `;
 
-      const tone = suggestion.tone || "Suggestion";
+      const tone =
+        suggestion.tone || getLocalizedString("defaultSuggestionTone");
       const variations = Array.isArray(suggestion.variations)
         ? suggestion.variations
         : [suggestion.variations];
@@ -720,7 +961,9 @@ function displaySuggestions(suggestions, container) {
               font-weight: 500;
               transition: background 0.2s;
               white-space: nowrap;
-            " data-variation="${index}">Copy</button>
+            " data-variation="${index}">${getLocalizedString(
+            "copyButton"
+          )}</button>
           </div>
         `
         )
@@ -746,34 +989,34 @@ function displaySuggestions(suggestions, container) {
 
           try {
             await navigator.clipboard.writeText(text);
-            button.textContent = "Copied!";
+            button.textContent = getLocalizedString("copiedButton");
             button.style.backgroundColor = "#17BF63";
 
             setTimeout(() => {
-              button.textContent = "Copy";
+              button.textContent = getLocalizedString("copyButton");
               button.style.backgroundColor = "#1DA1F2";
             }, 2000);
 
             document.getElementById("magic-tweet-panel").style.display = "none";
           } catch (err) {
             console.error("Failed to copy text:", err);
-            button.textContent = "Failed to copy";
+            button.textContent = getLocalizedString("copyFailedButton");
             button.style.backgroundColor = "#E0245E";
 
             setTimeout(() => {
-              button.textContent = "Copy";
+              button.textContent = getLocalizedString("copyButton");
               button.style.backgroundColor = "#1DA1F2";
             }, 2000);
           }
         });
 
         button.addEventListener("mouseover", () => {
-          if (button.textContent === "Copy") {
+          if (button.textContent === getLocalizedString("copyButton")) {
             button.style.backgroundColor = "#1a91da";
           }
         });
         button.addEventListener("mouseout", () => {
-          if (button.textContent === "Copy") {
+          if (button.textContent === getLocalizedString("copyButton")) {
             button.style.backgroundColor = "#1DA1F2";
           }
         });
@@ -810,8 +1053,9 @@ function displaySuggestions(suggestions, container) {
     updateTheme(isDark);
   } catch (error) {
     console.error("Error displaying suggestions:", error);
-    container.innerHTML =
-      '<div class="magic-tweet-error" style="color: #E0245E;">Error displaying suggestions</div>';
+    container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+      "errorDisplayingSuggestions"
+    )}</div>`;
   }
 }
 
@@ -829,7 +1073,25 @@ function debounce(func, wait) {
 }
 
 // Initialize the content script
-function initialize() {
+async function initialize() {
+  if (window.MagicTweetExtension.isInitialized) return;
+
+  // Get initial language from storage
+  try {
+    const result = await chrome.storage.local.get("userLanguage");
+    const initialLang = result.userLanguage || "en"; // Default to English
+    await setContentScriptLanguage(initialLang); // Await language setup
+  } catch (e) {
+    console.error(
+      "ContentScript: Error getting initial language from storage",
+      e
+    );
+    await setContentScriptLanguage("en"); // Fallback to English
+  }
+
+  // Initialize theme (after language potentially sets TONE_OPTIONS that theme might use)
+  initTheme();
+
   if (window.MagicTweetExtension.isInitialized) return;
 
   try {

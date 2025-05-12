@@ -22,6 +22,7 @@ if (!fs.existsSync("dist")) {
 fs.cpSync("scripts", "dist/scripts", { recursive: true });
 fs.cpSync("styles", "dist/styles", { recursive: true });
 fs.cpSync("icons", "dist/icons", { recursive: true });
+fs.cpSync("_locales", "dist/_locales", { recursive: true });
 fs.copyFileSync("manifest.json", "dist/manifest.json");
 fs.copyFileSync("popup.html", "dist/popup.html");
 

@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Magic Tweet",
+  "name": "__MSG_extensionName__",
   "version": "1.0.0",
-  "description": "AI-powered tweet suggestions with different tones",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
   "permissions": ["activeTab", "storage", "clipboardWrite", "scripting"],
   "host_permissions": ["https://twitter.com/*", "https://x.com/*"],
   "action": {
