@@ -853,7 +853,28 @@ function addIconToComposer(tweetCompose) {
 
 // Display suggestions in the panel
 function displaySuggestions(suggestions, container) {
-  container.innerHTML = "";
+  // Define SVG Icons as constants (with white stroke for contrast)
+  const COPY_ICON_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-copy">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+  `;
+  const SUCCESS_ICON_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-check-square">
+      <polyline points="9 11 12 14 22 4"></polyline>
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+    </svg>
+  `;
+  const ERROR_ICON_SVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x-square">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="9" y1="9" x2="15" y2="15"></line>
+      <line x1="15" y1="9" x2="9" y2="15"></line>
+    </svg>
+  `;
+
+  container.innerHTML = ""; // Clear previous suggestions
 
   if (!suggestions) {
     container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
@@ -933,43 +954,57 @@ function displaySuggestions(suggestions, container) {
 
       const variationsHtml = variations
         .filter((text) => text) // Filter out null/undefined/empty strings
-        .map(
-          (text, index) => `
+        .map((text, index) => {
+          const isRTL = document.documentElement.dir === "rtl";
+          // Define styles for the floated button
+          const buttonFloatStyle = `
+              float: ${isRTL ? "left" : "right"};
+              margin-${
+                isRTL ? "right" : "left"
+              }: 8px; /* Space between text and icon */
+              margin-top: 4px; /* Adjust vertical position slightly */
+            `;
+
+          return `
           <div class="magic-tweet-variation" style="
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            /* position: relative; removed */
+            overflow: hidden; /* Contain the floated button */
             margin-bottom: 8px;
-            padding: 8px;
+            padding: 8px; /* Overall padding */
             background: #FFFFFF;
             border: 1px solid #E1E8ED;
             border-radius: 6px;
             color: #14171A;
           ">
             <div class="magic-tweet-text" style="
-              flex: 1;
-              margin-right: 8px;
               color: #14171A;
+              /* Side padding removed */
             ">${text}</div>
             <button class="magic-tweet-copy" style="
+              ${buttonFloatStyle}
+              /* position: absolute; removed */
+              /* bottom/left/right removed */
               background: #1DA1F2;
               color: white;
               border: none;
-              padding: 6px 12px;
+              padding: 6px 12px; /* Button's own padding */
               border-radius: 16px;
               cursor: pointer;
-              font-weight: 500;
               transition: background 0.2s;
-              white-space: nowrap;
-            " data-variation="${index}">${getLocalizedString(
-            "copyButton"
-          )}</button>
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            " data-variation="${index}">
+              ${COPY_ICON_SVG} 
+            </button>
+            <!-- Optional: Add a clearfix element if overflow:hidden causes issues, but try without first -->
+            <!-- <div style="clear: both;"></div> -->
           </div>
-        `
-        )
+        `;
+        })
         .join("");
 
-      if (!variationsHtml) return; // Skip if no valid variations
+      if (!variationsHtml) return;
 
       suggestionDiv.innerHTML = `
         <div class="magic-tweet-tone" style="
@@ -989,36 +1024,57 @@ function displaySuggestions(suggestions, container) {
 
           try {
             await navigator.clipboard.writeText(text);
-            button.textContent = getLocalizedString("copiedButton");
-            button.style.backgroundColor = "#17BF63";
+            // Change background color and icon on success
+            button.innerHTML = SUCCESS_ICON_SVG;
+            button.style.backgroundColor = "#17BF63"; // Original success color
+            // button.style.opacity = "1"; // Remove opacity changes
 
             setTimeout(() => {
-              button.textContent = getLocalizedString("copyButton");
-              button.style.backgroundColor = "#1DA1F2";
+              // Restore original icon and background
+              button.innerHTML = COPY_ICON_SVG;
+              button.style.backgroundColor = "#1DA1F2"; // Original blue color
+              // button.style.opacity = "0.7"; // Remove opacity changes
             }, 2000);
 
             document.getElementById("magic-tweet-panel").style.display = "none";
           } catch (err) {
             console.error("Failed to copy text:", err);
-            button.textContent = getLocalizedString("copyFailedButton");
-            button.style.backgroundColor = "#E0245E";
+            // Change background color and icon on failure
+            button.innerHTML = ERROR_ICON_SVG;
+            button.style.backgroundColor = "#E0245E"; // Original error color
+            // button.style.opacity = "1"; // Remove opacity changes
 
             setTimeout(() => {
-              button.textContent = getLocalizedString("copyButton");
-              button.style.backgroundColor = "#1DA1F2";
+              // Restore original icon and background
+              button.innerHTML = COPY_ICON_SVG;
+              button.style.backgroundColor = "#1DA1F2"; // Original blue color
+              // button.style.opacity = "0.7"; // Remove opacity changes
             }, 2000);
           }
         });
 
+        // Restore original hover effect (background color change)
         button.addEventListener("mouseover", () => {
-          if (button.textContent === getLocalizedString("copyButton")) {
-            button.style.backgroundColor = "#1a91da";
+          // Only change hover color if it's the default state
+          if (button.style.backgroundColor === "rgb(29, 161, 242)") {
+            // Check for #1DA1F2
+            button.style.backgroundColor = "#1a91da"; // Original hover color
           }
+          // button.style.opacity = '1'; // Remove opacity changes
         });
         button.addEventListener("mouseout", () => {
-          if (button.textContent === getLocalizedString("copyButton")) {
-            button.style.backgroundColor = "#1DA1F2";
+          // Restore background color based on current state (copy/success/error)
+          const currentIconHTML = button.innerHTML.trim();
+          if (currentIconHTML === COPY_ICON_SVG.trim()) {
+            button.style.backgroundColor = "#1DA1F2"; // Original blue
+          } else if (currentIconHTML === SUCCESS_ICON_SVG.trim()) {
+            // Keep success color on mouseout if success icon is showing
+            button.style.backgroundColor = "#17BF63";
+          } else if (currentIconHTML === ERROR_ICON_SVG.trim()) {
+            // Keep error color on mouseout if error icon is showing
+            button.style.backgroundColor = "#E0245E";
           }
+          // button.style.opacity = '0.7'; // Remove opacity changes
         });
       });
 
