@@ -128,7 +128,7 @@
     "description": "پیام خطا که از کاربر می‌خواهد پس از بروز مشکل، صفحه را برای بازیابی افزونه دوباره بارگذاری کند."
   },
   "suggestionPanelHeader": {
-    "message": "پیشنهادات مجیک توییت",
+    "message": "پیشنهادات",
     "description": "عنوان پنل پیشنهادات."
   },
   "toneSelectionPanelHeader": {

@@ -200,7 +200,7 @@ Format:
         messages: [
           {
             role: "system",
-            content: `You are a tweet enhancement assistant. Rewrite tweets in a ${tone} tone while maintaining the core message. Ensure each variation is under 280 characters. Write in the same language as the input text. Follow the user's specified format for 5 variations.`,
+            content: `You are a tweet enhancement assistant. Rewrite tweets in a ${tone} tone while maintaining the core message. Ensure each variation is under 280 characters. Write in the same language as the input text. Follow the user\'s specified format for 5 variations.`,
           },
           {
             role: "user",
@@ -209,7 +209,7 @@ Format:
         ],
         // temperature: 0.7, // XAI might have different temperature scaling or might not use it for mini
         // max_tokens: 300, // XAI might have different token limits or calculations
-        reasoning_effort: "low", // Specific to XAI
+        // reasoning_effort: "low", // Specific to XAI - Temporarily removed for testing default behavior
       };
     }
 

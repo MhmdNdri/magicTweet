@@ -128,7 +128,7 @@
     "description": "Error message asking user to reload page to restore extension after an issue."
   },
   "suggestionPanelHeader": {
-    "message": "Magic Tweet Suggestions",
+    "message": "Suggestions",
     "description": "Header for the suggestions panel."
   },
   "toneSelectionPanelHeader": {
