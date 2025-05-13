@@ -202,5 +202,17 @@
   "languageToggleLabel": {
     "message": "Toggle language (English/Persian)",
     "description": "Accessibility label for the language toggle button."
+  },
+  "aiProviderHeading": {
+    "message": "Choose AI Provider",
+    "description": "Heading for the AI Provider selection section in the popup."
+  },
+  "aiProviderOpenAI": {
+    "message": "OpenAI GPT",
+    "description": "Label for the OpenAI radio button option."
+  },
+  "aiProviderXAI": {
+    "message": "XAI Grok",
+    "description": "Label for the XAI radio button option."
   }
 }

@@ -20,6 +20,8 @@ const API_TONE_MESSAGE_KEYS = {
   INSPIRATIONAL: "toneInspirationalMotivational",
 };
 
+const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
+
 // Function to fetch messages for a specific language (now requests from background)
 async function loadMessages(lang) {
   return new Promise((resolve, reject) => {
@@ -177,49 +179,55 @@ function addToneButtonListeners(tonePanel) {
         showLoadingState(suggestionPanel);
       }
 
-      try {
-        const response = await chrome.runtime.sendMessage({
-          action: "generateSuggestions",
-          text: text,
-          tone: toneApiKey, // Send the English message key
-        });
+      // Get AI provider preference from storage
+      chrome.storage.local.get([AI_PROVIDER_KEY], async (result) => {
+        const aiProvider = result[AI_PROVIDER_KEY] || "openai"; // Default to openai
 
-        if (!suggestionPanel) return; // Exit if panel removed
+        try {
+          const response = await chrome.runtime.sendMessage({
+            action: "generateSuggestions",
+            text: text,
+            tone: toneApiKey, // Send the English message key
+            aiProvider: aiProvider, // Add the selected AI provider
+          });
 
-        if (response && response.suggestions) {
-          const suggestions = response.suggestions;
-          if (
-            typeof suggestions === "object" &&
-            Object.keys(suggestions).length > 0
-          ) {
-            displaySuggestions(
-              suggestions,
-              suggestionPanel.querySelector(".magic-tweet-suggestions")
-            );
+          if (!suggestionPanel) return; // Exit if panel removed
+
+          if (response && response.suggestions) {
+            const suggestions = response.suggestions;
+            if (
+              typeof suggestions === "object" &&
+              Object.keys(suggestions).length > 0
+            ) {
+              displaySuggestions(
+                suggestions,
+                suggestionPanel.querySelector(".magic-tweet-suggestions")
+              );
+            } else {
+              showError(
+                suggestionPanel,
+                getLocalizedString("errorNoSuggestions")
+              );
+            }
+          } else if (response && response.error) {
+            showError(suggestionPanel, response.error);
           } else {
             showError(
               suggestionPanel,
-              getLocalizedString("errorNoSuggestions")
+              getLocalizedString("errorFailedSuggestions")
             );
           }
-        } else if (response && response.error) {
-          showError(suggestionPanel, response.error);
-        } else {
-          showError(
-            suggestionPanel,
-            getLocalizedString("errorFailedSuggestions")
-          );
+        } catch (error) {
+          console.error("Error generating suggestions:", error);
+          handleExtensionError(error);
+          if (suggestionPanel) {
+            showError(
+              suggestionPanel,
+              getLocalizedString("errorFailedSuggestions")
+            );
+          }
         }
-      } catch (error) {
-        console.error("Error generating suggestions:", error);
-        handleExtensionError(error);
-        if (suggestionPanel) {
-          showError(
-            suggestionPanel,
-            getLocalizedString("errorFailedSuggestions")
-          );
-        }
-      }
+      });
     });
   });
 }

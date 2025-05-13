@@ -30,6 +30,20 @@
         <p class="description" data-i18n="welcomeDescription">__MSG_welcomeDescription__</p>
       </div>
 
+      <div class="ai-provider-section">
+        <h3 data-i18n="aiProviderHeading">__MSG_aiProviderHeading__</h3>
+        <div class="radio-group">
+          <label>
+            <input type="radio" name="aiProvider" value="openai" checked>
+            <span data-i18n="aiProviderOpenAI">__MSG_aiProviderOpenAI__</span>
+          </label>
+          <label>
+            <input type="radio" name="aiProvider" value="xai">
+            <span data-i18n="aiProviderXAI">__MSG_aiProviderXAI__</span>
+          </label>
+        </div>
+      </div>
+
       <div class="how-to-use">
         <h3 data-i18n="howItWorksHeading">__MSG_howItWorksHeading__</h3>
         <ol class="steps">
@@ -87,8 +101,10 @@
         </div>
       </div>
     </div>
+
   </div>
   <script src="scripts/theme.js"></script>
   <script src="scripts/languageSwitcher.js"></script>
+  <script src="scripts/settings.js"></script>
 </body>
 </html>

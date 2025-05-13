@@ -1,7 +1,12 @@
 // OpenAI API configuration
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_API_KEY = "process.env.OPENAI_API_KEY";
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = "gpt-4.1-nano";
+
+// XAI API configuration
+const XAI_API_KEY = "process.env.XAI_API_KEY";
+const XAI_API_URL = "https://api.x.ai/v1";
+const XAI_MODEL = "grok-3-mini-beta";
 
 // Helper to load English messages for API prompts
 let englishMessages = {};
@@ -36,6 +41,8 @@ function getEnglishMessage(key, fallbackKey) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "generateSuggestions") {
     const toneMessageKey = request.tone; // This is the key like "styleSarcastic"
+    const aiProvider = request.aiProvider || "openai"; // Default to OpenAI if not specified
+
     if (!request.text || !toneMessageKey) {
       console.error("Missing required parameters in request:", request);
       sendResponse({
@@ -48,7 +55,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Get the English tone string for the API prompt
     const toneForApi = getEnglishMessage(toneMessageKey, toneMessageKey);
 
-    getAISuggestions(request.text, toneForApi) // Pass the English string
+    getAISuggestions(request.text, toneForApi, aiProvider) // Pass the English string and AI provider
       .then((result) => {
         console.log("Sending response:", result);
         sendResponse(result);
@@ -120,15 +127,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // Get AI suggestions for the tweet
-async function getAISuggestions(text, tone) {
+async function getAISuggestions(text, tone, aiProvider) {
   // Ensure English messages are loaded if they haven't been yet (async safety)
   if (Object.keys(englishMessages).length === 0) {
     await loadEnglishMessages();
   }
 
-  if (!OPENAI_API_KEY) {
-    console.error("API key is missing");
-    return { error: chrome.i18n.getMessage("errorApiKeyMissing") };
+  if (aiProvider === "openai") {
+    if (!OPENAI_API_KEY) {
+      console.error("OpenAI API key is missing");
+      return { error: chrome.i18n.getMessage("errorApiKeyMissing") };
+    }
+  } else if (aiProvider === "xai") {
+    if (!XAI_API_KEY) {
+      console.error("XAI API key is missing");
+      // Consider adding a specific i18n message for XAI key missing
+      return { error: chrome.i18n.getMessage("errorApiKeyMissing") };
+    }
+  } else {
+    console.error("Invalid AI provider:", aiProvider);
+    return { error: "Invalid AI provider specified." }; // Consider i18n
   }
 
   if (!text || !tone) {
@@ -145,18 +163,19 @@ Format:
 1. [First variation]
 2. [Second variation]
 3. [Third variation]
-4. [Fourth variation]`;
+4. [Fourth variation]
+5. [Fifth variation]`; // Corrected to 5 variations
 
   try {
-    console.log("Sending request to OpenAI API with tone:", tone);
-    const response = await fetch(OPENAI_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
+    let apiUrl, apiKey, model, requestBody;
+
+    if (aiProvider === "openai") {
+      console.log("Sending request to OpenAI API with tone:", tone);
+      apiUrl = OPENAI_API_URL;
+      apiKey = OPENAI_API_KEY;
+      model = OPENAI_MODEL;
+      requestBody = {
+        model: model,
         messages: [
           {
             role: "system",
@@ -168,15 +187,46 @@ Format:
           },
         ],
         temperature: 0.7,
-        max_tokens: 300, // Reduced for nano model
-      }),
+        max_tokens: 300,
+      };
+    } else {
+      // aiProvider === "xai"
+      console.log("Sending request to XAI API with tone:", tone);
+      apiUrl = XAI_API_URL + "/chat/completions"; // Endpoint for chat completions
+      apiKey = XAI_API_KEY;
+      model = XAI_MODEL;
+      requestBody = {
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content: `You are a tweet enhancement assistant. Rewrite tweets in a ${tone} tone while maintaining the core message. Ensure each variation is under 280 characters. Write in the same language as the input text. Follow the user's specified format for 5 variations.`,
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        // temperature: 0.7, // XAI might have different temperature scaling or might not use it for mini
+        // max_tokens: 300, // XAI might have different token limits or calculations
+        reasoning_effort: "low", // Specific to XAI
+      };
+    }
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    console.log("Received response from API");
+    console.log(`Received response from ${aiProvider.toUpperCase()} API`);
 
     if (!response.ok) {
       const error = await response.json();
-      console.error("API error response:", error);
+      console.error(`${aiProvider.toUpperCase()} API error response:`, error);
       return {
         error:
           error.error?.message ||
@@ -186,14 +236,35 @@ Format:
     }
 
     const data = await response.json();
-    console.log("Parsed API response:", data);
+    console.log(`Parsed ${aiProvider.toUpperCase()} API response:`, data);
 
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    if (
+      aiProvider === "xai" &&
+      data.choices &&
+      data.choices[0] &&
+      data.choices[0].message &&
+      data.choices[0].message.reasoning_content
+    ) {
+      console.log(
+        "XAI Reasoning Content:",
+        data.choices[0].message.reasoning_content
+      );
+    }
+
+    if (
+      !data.choices ||
+      !data.choices[0] ||
+      !data.choices[0].message ||
+      !data.choices[0].message.content
+    ) {
       console.error("Invalid API response format:", data);
       return { error: chrome.i18n.getMessage("errorInvalidApiResponse") };
     }
 
-    const suggestions = parseSuggestions(data.choices[0].message.content, tone);
+    const suggestionsContent = data.choices[0].message.content;
+    // Pass aiProvider (or model name if more specific parsing is needed later) to parseSuggestions if its logic needs to differ.
+    // For now, assume XAI can be prompted to return a similar format.
+    const suggestions = parseSuggestions(suggestionsContent, tone);
     console.log("Parsed suggestions:", suggestions);
 
     if (!suggestions || !suggestions[tone] || suggestions[tone].length === 0) {
@@ -239,6 +310,7 @@ function parseSuggestions(content, tone) {
     variations.push("");
   }
   variations.splice(5); // Trim to 4 if more
+  variations.splice(5); // Trim to 5 if more (was 4, should be 5 as per prompt)
 
   suggestions[tone] = variations;
   console.log("Final suggestions object:", suggestions);
