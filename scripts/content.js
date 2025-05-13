@@ -722,15 +722,33 @@ function createToneSelectionPanel() {
 function showLoadingState(panel) {
   const content = panel.querySelector(".magic-tweet-suggestions");
   content.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; padding: 20px;">
-      <div style="width: 40px; height: 40px; border: 3px solid var(--primary-color); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px;"></div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 100px;">
+      <div class="loading-dots-container" style="display: flex; align-items: center; margin-bottom: 15px;">
+        <div class="loading-dot" style="animation-delay: 0s;"></div>
+        <div class="loading-dot" style="animation-delay: 0.2s;"></div>
+        <div class="loading-dot" style="animation-delay: 0.4s;"></div>
+      </div>
       <div style="color: var(--text-color); font-size: 14px;">${getLocalizedString(
         "loadingSuggestions"
       )}</div>
     </div>
     <style>
-      @keyframes spin {
-        to { transform: rotate(360deg); }
+      .loading-dots-container .loading-dot {
+        width: 8px; /* Smaller dots */
+        height: 8px; /* Smaller dots */
+        background-color: var(--primary-color, #1DA1F2);
+        border-radius: 50%;
+        margin: 0 4px;
+        animation: bounce 1s infinite ease-in-out both; /* Faster animation */
+      }
+
+      @keyframes bounce {
+        0%, 80%, 100% {
+          transform: scale(0);
+        }
+        40% {
+          transform: scale(1.0);
+        }
       }
     </style>
   `;
@@ -740,7 +758,7 @@ function showLoadingState(panel) {
 function showError(panel, error) {
   const content = panel.querySelector(".magic-tweet-suggestions");
   content.innerHTML = `
-    <div style="padding: 20px; text-align: center;">
+    <div style="padding: 8px; text-align: center;">
       <div style="color: var(--error-color); margin-bottom: 12px; font-weight: 500;">${getLocalizedString(
         "errorPrefix"
       )}${error}</div>
@@ -969,8 +987,8 @@ function displaySuggestions(suggestions, container) {
               float: ${isRTL ? "left" : "right"};
               margin-${
                 isRTL ? "right" : "left"
-              }: 8px; /* Space between text and icon */
-              margin-top: 4px; /* Adjust vertical position slightly */
+              }: 4px; /* Space between text and icon */
+              margin-top: 2px; /* Adjust vertical position slightly */
             `;
 
           return `
@@ -995,7 +1013,7 @@ function displaySuggestions(suggestions, container) {
               background: #1DA1F2;
               color: white;
               border: none;
-              padding: 6px 12px; /* Button's own padding */
+              padding: 4px 8px; /* Button's own padding */
               border-radius: 16px;
               cursor: pointer;
               transition: background 0.2s;

@@ -136,7 +136,7 @@
     "description": "Header for the tone selection panel."
   },
   "loadingSuggestions": {
-    "message": "Generating suggestions...",
+    "message": "Generating suggestions",
     "description": "Text shown while suggestions are loading."
   },
   "errorPrefix": {

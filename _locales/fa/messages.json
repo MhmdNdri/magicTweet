@@ -136,7 +136,7 @@
     "description": "عنوان پنل انتخاب لحن."
   },
   "loadingSuggestions": {
-    "message": "در حال ایجاد پیشنهادات...",
+    "message": "در حال ایجاد پیشنهادات",
     "description": "متن نمایش داده شده هنگام بارگذاری پیشنهادات."
   },
   "errorPrefix": {
