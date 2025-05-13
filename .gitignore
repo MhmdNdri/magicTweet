@@ -27,3 +27,6 @@ yarn-error.log*
 *.pem
 *.crx
 *.zip 
+
+# Build output
+/dist 
