@@ -5,7 +5,29 @@ window.MagicTweetExtension = {
   currentMessages: {},
   // TONE_OPTIONS will be populated after messages load
   TONE_OPTIONS: {},
+  currentThemeIsDark: false, // Added for centralized theme state
+  observer: null,
+  pollingInterval: null,
+  lastInitAttempt: 0,
 };
+
+// Constants for IDs and Class Names
+const EXT_NAMESPACE = "magic-tweet";
+const ICON_ID = `${EXT_NAMESPACE}-icon`;
+const SUGGESTION_PANEL_ID = `${EXT_NAMESPACE}-panel`;
+const TONE_PANEL_ID = `${EXT_NAMESPACE}-tone-panel`;
+const CONTAINER_CLASS = `${EXT_NAMESPACE}-container`;
+const HEADER_CLASS = `${EXT_NAMESPACE}-header`;
+const SUGGESTIONS_CLASS = `${EXT_NAMESPACE}-suggestions`; // Content area for both panels
+const CLOSE_BUTTON_CLASS = `${EXT_NAMESPACE}-close`;
+const TONE_BUTTON_CLASS = `${EXT_NAMESPACE}-tone-btn`;
+const SUGGESTION_CLASS = `${EXT_NAMESPACE}-suggestion`;
+const VARIATION_CLASS = `${EXT_NAMESPACE}-variation`;
+const TEXT_CLASS = `${EXT_NAMESPACE}-text`;
+const TONE_TEXT_CLASS = `${EXT_NAMESPACE}-tone`; // For the tone title in suggestions
+const COPY_BUTTON_CLASS = `${EXT_NAMESPACE}-copy`;
+const RETRY_BUTTON_CLASS = `${EXT_NAMESPACE}-retry`;
+const ERROR_CLASS = `${EXT_NAMESPACE}-error`;
 
 // These keys will be sent to the API. Their corresponding English messages will be used in the prompt.
 const API_TONE_MESSAGE_KEYS = {
@@ -82,7 +104,7 @@ function getLocalizedString(key, fallback = "") {
 function applyContentScriptTranslations() {
   // Update panel headers
   const suggestionPanelHeader = document.querySelector(
-    "#magic-tweet-panel .magic-tweet-header span"
+    `#${SUGGESTION_PANEL_ID} .${HEADER_CLASS} span`
   );
   if (suggestionPanelHeader) {
     suggestionPanelHeader.textContent = getLocalizedString(
@@ -90,7 +112,7 @@ function applyContentScriptTranslations() {
     );
   }
   const tonePanelHeader = document.querySelector(
-    "#magic-tweet-tone-panel .magic-tweet-header span"
+    `#${TONE_PANEL_ID} .${HEADER_CLASS} span`
   );
   if (tonePanelHeader) {
     tonePanelHeader.textContent = getLocalizedString(
@@ -100,7 +122,7 @@ function applyContentScriptTranslations() {
 
   // Update tone buttons (regenerate them with new text)
   const tonePanelContent = document.querySelector(
-    "#magic-tweet-tone-panel .magic-tweet-suggestions"
+    `#${TONE_PANEL_ID} .${SUGGESTIONS_CLASS}`
   );
   if (tonePanelContent) {
     // Iterate over the API_TONE_MESSAGE_KEYS to ensure consistent button order and data
@@ -109,22 +131,23 @@ function applyContentScriptTranslations() {
       const messageKey = API_TONE_MESSAGE_KEYS[internalKey];
       const localizedText = getLocalizedString(messageKey); // Get current localized text
       toneButtonsHtml += `
-        <button class="magic-tweet-tone-btn" 
+        <button class="${TONE_BUTTON_CLASS}" 
           style="width: 100%; padding: 10px; margin-bottom: 8px; background: #FFFFFF; border: 1px solid #1DA1F2; border-radius: 20px; color: #1DA1F2; font-weight: 500; cursor: pointer; transition: all 0.2s;"
           data-tone-api-key="${messageKey}">${localizedText}</button>
       `;
     }
     tonePanelContent.innerHTML = toneButtonsHtml;
-    addToneButtonListeners(document.getElementById("magic-tweet-tone-panel"));
-    const isDark =
-      document.documentElement.getAttribute("data-theme") === "dark";
-    applyThemeToTonePanel(
-      document.getElementById("magic-tweet-tone-panel"),
-      isDark
-    );
+    const tonePanelElement = document.getElementById(TONE_PANEL_ID);
+    addToneButtonListeners(tonePanelElement);
+    if (tonePanelElement) {
+      themeTonePanelDOM(
+        tonePanelElement,
+        window.MagicTweetExtension.currentThemeIsDark
+      );
+    }
   }
 
-  const iconImg = document.querySelector("#magic-tweet-icon img");
+  const iconImg = document.querySelector(`#${ICON_ID} img`);
   if (iconImg) {
     iconImg.alt = getLocalizedString("extensionName");
   }
@@ -134,11 +157,11 @@ function applyContentScriptTranslations() {
   // We don't explicitly re-translate existing suggestions here, as that would require re-fetching.
 }
 
-// Function to add tone button listeners (extracted for reuse)
+// Function to add tone button listeners (This will be moved to event_handlers.js later)
 function addToneButtonListeners(tonePanel) {
   if (!tonePanel) return;
-  const suggestionPanel = document.getElementById("magic-tweet-panel");
-  tonePanel.querySelectorAll(".magic-tweet-tone-btn").forEach((button) => {
+  const suggestionPanel = document.getElementById(SUGGESTION_PANEL_ID);
+  tonePanel.querySelectorAll(`.${TONE_BUTTON_CLASS}`).forEach((button) => {
     button.replaceWith(button.cloneNode(true));
     const newButton = tonePanel.querySelector(
       `[data-tone-api-key="${button.dataset.toneApiKey}"]`
@@ -150,48 +173,56 @@ function addToneButtonListeners(tonePanel) {
       newButton.style.color = "#FFFFFF";
     });
     newButton.addEventListener("mouseout", () => {
-      const isDark =
-        document.documentElement.getAttribute("data-theme") === "dark";
+      const isDark = window.MagicTweetExtension.currentThemeIsDark; // Use global state
       newButton.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
       newButton.style.color = "#1DA1F2";
     });
 
     newButton.addEventListener("click", async () => {
-      const toneApiKey = newButton.dataset.toneApiKey; // THIS IS THE ENGLISH MESSAGE KEY
+      const toneApiKey = newButton.dataset.toneApiKey;
       const tweetCompose = findTweetComposer();
       const text = tweetCompose
         ? tweetCompose.textContent || tweetCompose.innerText
         : null;
 
+      // Get fresh references to panels inside the click handler
+      const currentSuggestionPanel =
+        document.getElementById(SUGGESTION_PANEL_ID);
+      const currentTonePanel = document.getElementById(TONE_PANEL_ID);
+
       if (!text || !toneApiKey) {
-        showError(suggestionPanel, getLocalizedString("errorMissingInfo"));
+        if (currentSuggestionPanel)
+          showError(
+            currentSuggestionPanel,
+            getLocalizedString("errorMissingInfo")
+          );
         return;
       }
 
-      // Hide tone panel and show suggestion panel
-      tonePanel.style.display = "none";
-      if (suggestionPanel) {
-        suggestionPanel.style.display = "block";
-        suggestionPanel.style.position = "fixed";
-        suggestionPanel.style.right = "38%";
-        suggestionPanel.style.top = "calc(14% + 50px)";
-        suggestionPanel.style.zIndex = "10000";
-        showLoadingState(suggestionPanel);
+      if (currentTonePanel) currentTonePanel.style.display = "none";
+      if (currentSuggestionPanel) {
+        currentSuggestionPanel.style.display = "block";
+        currentSuggestionPanel.style.position = "fixed";
+        currentSuggestionPanel.style.right = "38%";
+        currentSuggestionPanel.style.top = "calc(14% + 50px)";
+        currentSuggestionPanel.style.zIndex = "10000";
+        showLoadingState(currentSuggestionPanel);
       }
 
-      // Get AI provider preference from storage
       chrome.storage.local.get([AI_PROVIDER_KEY], async (result) => {
-        const aiProvider = result[AI_PROVIDER_KEY] || "openai"; // Default to openai
-
+        const aiProvider = result[AI_PROVIDER_KEY] || "openai";
         try {
           const response = await chrome.runtime.sendMessage({
             action: "generateSuggestions",
             text: text,
-            tone: toneApiKey, // Send the English message key
-            aiProvider: aiProvider, // Add the selected AI provider
+            tone: toneApiKey,
+            aiProvider: aiProvider,
           });
 
-          if (!suggestionPanel) return; // Exit if panel removed
+          // Get a fresh reference to suggestionPanel again, as it might have been affected by async operations or DOM changes
+          const freshSuggestionPanel =
+            document.getElementById(SUGGESTION_PANEL_ID);
+          if (!freshSuggestionPanel) return;
 
           if (response && response.suggestions) {
             const suggestions = response.suggestions;
@@ -201,28 +232,31 @@ function addToneButtonListeners(tonePanel) {
             ) {
               displaySuggestions(
                 suggestions,
-                suggestionPanel.querySelector(".magic-tweet-suggestions")
+                freshSuggestionPanel.querySelector(`.${SUGGESTIONS_CLASS}`)
               );
             } else {
               showError(
-                suggestionPanel,
+                freshSuggestionPanel,
                 getLocalizedString("errorNoSuggestions")
               );
             }
           } else if (response && response.error) {
-            showError(suggestionPanel, response.error);
+            showError(freshSuggestionPanel, response.error);
           } else {
             showError(
-              suggestionPanel,
+              freshSuggestionPanel,
               getLocalizedString("errorFailedSuggestions")
             );
           }
         } catch (error) {
           console.error("Error generating suggestions:", error);
           handleExtensionError(error);
-          if (suggestionPanel) {
+          // Get a fresh reference in case of error too
+          const freshSuggestionPanelOnError =
+            document.getElementById(SUGGESTION_PANEL_ID);
+          if (freshSuggestionPanelOnError) {
             showError(
-              suggestionPanel,
+              freshSuggestionPanelOnError,
               getLocalizedString("errorFailedSuggestions")
             );
           }
@@ -230,26 +264,6 @@ function addToneButtonListeners(tonePanel) {
       });
     });
   });
-}
-
-// Helper to apply theme updates to tone panel elements
-function applyThemeToTonePanel(panel, isDark) {
-  if (!panel) return;
-  panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-  panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-  panel.style.color = isDark ? "#FFFFFF" : "#14171A";
-
-  const buttons = panel.querySelectorAll(".magic-tweet-tone-btn");
-  buttons.forEach((button) => {
-    button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-    button.style.borderColor = "#1DA1F2";
-    button.style.color = "#1DA1F2";
-  });
-
-  const header = panel.querySelector(".magic-tweet-header");
-  if (header) {
-    header.style.borderBottomColor = isDark ? "#38444D" : "#E1E8ED";
-  }
 }
 
 // Function to populate TONE_OPTIONS from loaded messages
@@ -298,7 +312,7 @@ async function setContentScriptLanguage(lang) {
     populateToneOptions(); // Repopulate TONE_OPTIONS with new language
     applyContentScriptTranslations(); // Apply translations to existing UI elements
     // The panels and icons might need to be re-created or explicitly updated if they are already on the page
-    const icon = document.getElementById("magic-tweet-icon");
+    const icon = document.getElementById(ICON_ID);
     if (icon && icon.style.display !== "none") {
       // If icon is visible, re-run parts of its setup that might depend on language
       // This is a bit of a heavy-handed approach, might need refinement
@@ -310,7 +324,7 @@ async function setContentScriptLanguage(lang) {
   }
 }
 
-// Listen for theme changes
+// Listen for theme changes (and language changes)
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "local" && changes.userLanguage) {
     const newLang = changes.userLanguage.newValue;
@@ -319,31 +333,26 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       setContentScriptLanguage(newLang);
     }
   }
-  // Handle theme changes as before
+  // Handle theme changes centrally
   if (namespace === "local" && changes["magic-tweet-theme"]) {
     const newTheme = changes["magic-tweet-theme"].newValue;
-    document.documentElement.setAttribute("data-theme", newTheme);
-    // Update dynamic panels theme if they exist
-    const suggestionPanel = document.getElementById("magic-tweet-panel");
-    const tonePanel = document.getElementById("magic-tweet-tone-panel");
-    if (suggestionPanel) {
-      // Assuming createSuggestionPanel has an internal updateTheme or similar
-      // For now, we call the theme update function of createSuggestionPanel if it exists and can be exposed,
-      // or we replicate its theme logic here.
-      // This part needs careful integration with how panels handle their own theme updates.
-    }
-    if (tonePanel) {
-      applyThemeToTonePanel(tonePanel, newTheme === "dark");
-    }
+    applyGlobalThemeStyles(newTheme === "dark"); // Call the centralized function
   }
 });
 
 // Initialize theme
-function initTheme() {
-  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
-    const theme = result["magic-tweet-theme"] || "light";
-    document.documentElement.setAttribute("data-theme", theme);
-  });
+async function initTheme() {
+  try {
+    // Wrap chrome.storage.local.get in a Promise for async/await
+    const result = await new Promise((resolve) =>
+      chrome.storage.local.get(["magic-tweet-theme"], resolve)
+    );
+    const theme = result["magic-tweet-theme"] || "light"; // Default to 'light'
+    applyGlobalThemeStyles(theme === "dark");
+  } catch (e) {
+    console.error("ContentScript: Error initializing theme from storage:", e);
+    applyGlobalThemeStyles(false); // Fallback to light theme on error
+  }
 }
 
 // Function to find tweet composer
@@ -534,67 +543,11 @@ function handleExtensionError(error) {
   }
 }
 
-// Function to create floating icon
-function createFloatingIcon() {
-  try {
-    const icon = document.createElement("div");
-    icon.id = "magic-tweet-icon";
-    icon.className = "magic-tweet-icon";
-
-    // Try to get the icon URL, if it fails, use a fallback
-    let iconUrl;
-    try {
-      iconUrl = chrome.runtime.getURL("icons/icon.svg");
-    } catch (e) {
-      // Fallback to a data URL if chrome.runtime.getURL fails
-      iconUrl =
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0 0-1.41L12.42 4.4a.996.996 0 0 0-1.41 0L2.4 13.01a.996.996 0 0 0 0 1.41l1.41 1.41c.39.39 1.02.39 1.41 0l8.6-8.6 8.6 8.6c.39.39 1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41l-8.6-8.6z'/%3E%3C/svg%3E";
-    }
-
-    icon.innerHTML = `<img src="${iconUrl}" alt="${getLocalizedString(
-      "extensionName"
-    )}" style="width: 40px; height: 40px;">`;
-
-    Object.assign(icon.style, {
-      backgroundColor: "transparent",
-      color: "#FFFFFF",
-      borderRadius: "50%",
-      cursor: "pointer",
-      boxShadow: "0 2px 8px rgba(29, 161, 242, 0.3)",
-      transition: "all 0.2s ease",
-      position: "fixed",
-      right: "calc(50% - 250px)",
-      top: "12%",
-      zIndex: "999999",
-      width: "32px",
-      height: "32px",
-      display: "none", // Initially hidden
-      alignItems: "center",
-      justifyContent: "center",
-    });
-
-    icon.addEventListener("mouseover", () => {
-      icon.style.transform = "translateY(-2px)";
-      icon.style.boxShadow = "0 4px 12px rgba(29, 161, 242, 0.4)";
-    });
-
-    icon.addEventListener("mouseout", () => {
-      icon.style.transform = "translateY(0)";
-      icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
-    });
-
-    return icon;
-  } catch (error) {
-    handleExtensionError(error);
-    return null;
-  }
-}
-
 // Function to handle clicks outside panels
 function handleOutsideClick(event) {
-  const suggestionPanel = document.getElementById("magic-tweet-panel");
-  const tonePanel = document.getElementById("magic-tweet-tone-panel");
-  const icon = document.getElementById("magic-tweet-icon");
+  const suggestionPanel = document.getElementById(SUGGESTION_PANEL_ID);
+  const tonePanel = document.getElementById(TONE_PANEL_ID);
+  const icon = document.getElementById(ICON_ID);
 
   if (
     suggestionPanel &&
@@ -609,216 +562,9 @@ function handleOutsideClick(event) {
   }
 }
 
-// Function to create suggestion panel
-function createSuggestionPanel() {
-  const panel = document.createElement("div");
-  panel.id = "magic-tweet-panel";
-  panel.className = "magic-tweet-container";
-
-  // Set initial styles
-  Object.assign(panel.style, {
-    display: "none",
-    position: "fixed",
-    right: "38%",
-    top: "calc(14% + 50px)",
-    width: "300px",
-    zIndex: "10000",
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    backgroundColor: "#FFFFFF",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-    border: "1px solid #E1E8ED",
-    padding: "12px",
-    color: "#14171A",
-  });
-
-  // Add theme support
-  const updateTheme = (isDark) => {
-    panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-    panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-    panel.style.color = isDark ? "#FFFFFF" : "#14171A";
-
-    // Update all suggestion elements
-    const suggestions = panel.querySelectorAll(".magic-tweet-suggestion");
-    suggestions.forEach((suggestion) => {
-      suggestion.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-      suggestion.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-      suggestion.style.color = isDark ? "#FFFFFF" : "#14171A";
-    });
-
-    // Update all variation elements
-    const variations = panel.querySelectorAll(".magic-tweet-variation");
-    variations.forEach((variation) => {
-      variation.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-      variation.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-    });
-
-    // Update all text elements
-    const texts = panel.querySelectorAll(
-      ".magic-tweet-text, .magic-tweet-tone"
-    );
-    texts.forEach((text) => {
-      text.style.color = isDark ? "#FFFFFF" : "#14171A";
-    });
-  };
-
-  // Check current theme
-  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
-    updateTheme(result["magic-tweet-theme"] === "dark");
-  });
-
-  // Listen for theme changes
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local" && changes["magic-tweet-theme"]) {
-      updateTheme(changes["magic-tweet-theme"].newValue === "dark");
-    }
-  });
-
-  panel.addEventListener("click", (e) => e.stopPropagation());
-
-  const header = document.createElement("div");
-  header.className = "magic-tweet-header";
-  header.style.cssText = `
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #E1E8ED;
-  `;
-  header.innerHTML = `
-    <span style="font-weight: 500;">${getLocalizedString(
-      "suggestionPanelHeader"
-    )}</span>
-    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
-  `;
-
-  const content = document.createElement("div");
-  content.className = "magic-tweet-suggestions";
-  content.style.cssText = `
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 4px;
-  `;
-
-  panel.appendChild(header);
-  panel.appendChild(content);
-
-  header.querySelector(".magic-tweet-close").addEventListener("click", () => {
-    panel.style.display = "none";
-  });
-
-  return panel;
-}
-
-// Function to create tone selection panel
-function createToneSelectionPanel() {
-  const panel = document.createElement("div");
-  panel.id = "magic-tweet-tone-panel";
-  panel.className = "magic-tweet-container";
-
-  // Set initial styles
-  Object.assign(panel.style, {
-    display: "none",
-    position: "fixed",
-    right: "38%",
-    top: "calc(14% + 50px)",
-    width: "300px",
-    zIndex: "10000",
-    fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    backgroundColor: "#FFFFFF",
-    borderRadius: "12px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-    border: "1px solid #E1E8ED",
-    padding: "12px",
-    color: "#14171A",
-  });
-
-  // Add theme support
-  const updateTheme = (isDark) => {
-    panel.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-    panel.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-    panel.style.color = isDark ? "#FFFFFF" : "#14171A";
-
-    // Update tone buttons
-    const buttons = panel.querySelectorAll(".magic-tweet-tone-btn");
-    buttons.forEach((button) => {
-      button.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-      button.style.borderColor = "#1DA1F2";
-      button.style.color = "#1DA1F2";
-    });
-  };
-
-  // Check current theme
-  chrome.storage.local.get(["magic-tweet-theme"], (result) => {
-    updateTheme(result["magic-tweet-theme"] === "dark");
-  });
-
-  // Listen for theme changes
-  chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "local" && changes["magic-tweet-theme"]) {
-      updateTheme(changes["magic-tweet-theme"].newValue === "dark");
-    }
-  });
-
-  panel.addEventListener("click", (e) => e.stopPropagation());
-
-  const header = document.createElement("div");
-  header.className = "magic-tweet-header";
-  header.style.cssText = `
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #E1E8ED;
-  `;
-  header.innerHTML = `
-    <span style="font-weight: 500;">${getLocalizedString(
-      "toneSelectionPanelHeader"
-    )}</span>
-    <button class="magic-tweet-close" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
-  `;
-
-  const content = document.createElement("div");
-  content.className = "magic-tweet-suggestions";
-  content.style.cssText = `
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 4px;
-  `;
-
-  // Iterate over API_TONE_MESSAGE_KEYS for consistency
-  let toneButtonsHtml = "";
-  for (const internalKey in API_TONE_MESSAGE_KEYS) {
-    const messageKey = API_TONE_MESSAGE_KEYS[internalKey];
-    const localizedText = getLocalizedString(messageKey); // Get current localized text
-    toneButtonsHtml += `
-      <button class="magic-tweet-tone-btn" 
-        style="width: 100%; padding: 10px; margin-bottom: 8px; background: #FFFFFF; border: 1px solid #1DA1F2; border-radius: 20px; color: #1DA1F2; font-weight: 500; cursor: pointer; transition: all 0.2s;"
-        data-tone-api-key="${messageKey}">${localizedText}</button>
-    `;
-  }
-  content.innerHTML = toneButtonsHtml;
-
-  panel.appendChild(header);
-  panel.appendChild(content);
-
-  // Centralize listener attachment
-  addToneButtonListeners(panel);
-
-  header.querySelector(".magic-tweet-close").addEventListener("click", () => {
-    panel.style.display = "none";
-  });
-
-  return panel;
-}
-
 // Function to show loading state
 function showLoadingState(panel) {
-  const content = panel.querySelector(".magic-tweet-suggestions");
+  const content = panel.querySelector(`.${SUGGESTIONS_CLASS}`);
   content.innerHTML = `
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 100px;">
       <div class="loading-dots-container" style="display: flex; align-items: center; margin-bottom: 15px;">
@@ -854,13 +600,13 @@ function showLoadingState(panel) {
 
 // Function to show error message
 function showError(panel, error) {
-  const content = panel.querySelector(".magic-tweet-suggestions");
+  const content = panel.querySelector(`.${SUGGESTIONS_CLASS}`);
   content.innerHTML = `
     <div style="padding: 8px; text-align: center;">
       <div style="color: var(--error-color); margin-bottom: 12px; font-weight: 500;">${getLocalizedString(
         "errorPrefix"
       )}${error}</div>
-      <button class="magic-tweet-retry" style="
+      <button class="${RETRY_BUTTON_CLASS}" style="
         background: var(--primary-color);
         color: white;
         border: none;
@@ -873,21 +619,23 @@ function showError(panel, error) {
     </div>
   `;
 
-  content.querySelector(".magic-tweet-retry").addEventListener("click", () => {
-    const tonePanel = document.getElementById("magic-tweet-tone-panel");
-    if (tonePanel) {
-      panel.style.display = "none";
-      tonePanel.style.display = "block";
-    }
-  });
+  content
+    .querySelector(`.${RETRY_BUTTON_CLASS}`)
+    .addEventListener("click", () => {
+      const tonePanel = document.getElementById(TONE_PANEL_ID);
+      if (tonePanel) {
+        panel.style.display = "none";
+        tonePanel.style.display = "block";
+      }
+    });
 }
 
 // Function to remove all extension elements
 function removeExtensionElements() {
   const elements = [
-    document.getElementById("magic-tweet-icon"),
-    document.getElementById("magic-tweet-panel"),
-    document.getElementById("magic-tweet-tone-panel"),
+    document.getElementById(ICON_ID),
+    document.getElementById(SUGGESTION_PANEL_ID),
+    document.getElementById(TONE_PANEL_ID),
   ];
 
   elements.forEach((element) => {
@@ -908,29 +656,41 @@ function removeExtensionElements() {
   window.MagicTweetExtension.isInitialized = false; // Reset initialization flag
 }
 
+// Helper function to ensure icon and panels are in the DOM
+function ensureExtensionElementsExist() {
+  let icon = document.getElementById(ICON_ID);
+  let suggestionPanel = document.getElementById(SUGGESTION_PANEL_ID);
+  let tonePanel = document.getElementById(TONE_PANEL_ID);
+
+  if (!icon) {
+    icon = createFloatingIcon();
+    if (icon) document.body.appendChild(icon); // Ensure icon was created successfully
+  }
+  if (!suggestionPanel) {
+    suggestionPanel = createSuggestionPanel();
+    if (suggestionPanel) document.body.appendChild(suggestionPanel);
+  }
+  if (!tonePanel) {
+    tonePanel = createToneSelectionPanel();
+    if (tonePanel) document.body.appendChild(tonePanel);
+  }
+  return { icon, suggestionPanel, tonePanel };
+}
+
 // Function to add icon and panels to tweet composer
 function addIconToComposer(tweetCompose) {
   if (!tweetCompose) return;
 
-  // Create icon and panels if they don't exist
-  let icon = document.getElementById("magic-tweet-icon");
-  let suggestionPanel = document.getElementById("magic-tweet-panel");
-  let tonePanel = document.getElementById("magic-tweet-tone-panel");
+  // Ensure all necessary UI elements exist or are created
+  const { icon, suggestionPanel, tonePanel } = ensureExtensionElementsExist();
 
+  // If critical elements like the icon couldn't be created, abort.
   if (!icon) {
-    icon = createFloatingIcon();
-    document.body.appendChild(icon);
-  }
-  if (!suggestionPanel) {
-    suggestionPanel = createSuggestionPanel();
-    document.body.appendChild(suggestionPanel);
-  }
-  if (!tonePanel) {
-    tonePanel = createToneSelectionPanel();
-    document.body.appendChild(tonePanel);
+    console.error("MagicTweet: Floating icon could not be created or found.");
+    return;
   }
 
-  // Add input event listener to show/hide icon based on text content
+  // Define input handler for the tweet composer
   const handleInput = () => {
     const text = tweetCompose.textContent || tweetCompose.innerText || "";
     const isEmpty =
@@ -947,36 +707,52 @@ function addIconToComposer(tweetCompose) {
     }
   };
 
-  // Add input event listener
-  tweetCompose.addEventListener("input", handleInput);
+  // Add input event listener only if it hasn't been added before
+  if (!tweetCompose.dataset.magicTweetInputListenerAdded) {
+    tweetCompose.addEventListener("input", handleInput);
+    tweetCompose.dataset.magicTweetInputListenerAdded = "true";
+  }
 
   // Check initial state
   handleInput();
 
   // Add click event listener to the icon
-  if (icon) {
+  // Ensure icon listener is fresh if icon was re-created or composer changed
+  // A simple way is to clone and replace, or manage by a flag on the icon itself.
+  // For now, we rely on the fact that if addIconToComposer is called, we want to ensure the listener is active.
+  // If the icon element is the same, addEventListener typically doesn't duplicate for the same function reference.
+  // However, if `createFloatingIcon` is called multiple times leading to a new icon element,
+  // the old one might be detached and the new one needs its listener.
+  // The current ensureExtensionElementsExist handles getting the *current* icon.
+
+  // To be absolutely sure we don't attach multiple click listeners to the *same icon instance* if this function is somehow called repeatedly
+  // without the icon being re-created, we can use a flag, similar to the input listener.
+  if (!icon.dataset.magicTweetClickListenerAdded) {
     icon.addEventListener("click", async (e) => {
       e.preventDefault();
       e.stopPropagation();
 
+      // Ensure panels are fresh, in case they were re-created by ensureExtensionElementsExist or other logic
+      const currentSuggestionPanel =
+        document.getElementById(SUGGESTION_PANEL_ID);
+      const currentTonePanel = document.getElementById(TONE_PANEL_ID);
+
       const text = tweetCompose.textContent || tweetCompose.innerText || "";
       if (text.trim()) {
-        // Hide suggestion panel if it's visible
-        if (suggestionPanel) {
-          suggestionPanel.style.display = "none";
+        if (currentSuggestionPanel) {
+          currentSuggestionPanel.style.display = "none";
         }
-
-        // Show tone panel
-        if (tonePanel) {
-          tonePanel.style.display = "block";
-          // Position the panel
-          tonePanel.style.position = "fixed";
-          tonePanel.style.right = "38%";
-          tonePanel.style.top = "calc(14% + 50px)";
-          tonePanel.style.zIndex = "10000";
+        if (currentTonePanel) {
+          currentTonePanel.style.display = "block";
+          // Position the panel (styles are mostly set, but ensure it's visible and positioned)
+          currentTonePanel.style.position = "fixed"; // Re-affirm if needed
+          currentTonePanel.style.right = "38%";
+          currentTonePanel.style.top = "calc(14% + 50px)";
+          currentTonePanel.style.zIndex = "10000";
         }
       }
     });
+    icon.dataset.magicTweetClickListenerAdded = "true";
   }
 
   // Add document click listener if not already added
@@ -1012,7 +788,7 @@ function displaySuggestions(suggestions, container) {
   container.innerHTML = ""; // Clear previous suggestions
 
   if (!suggestions) {
-    container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+    container.innerHTML = `<div class="${ERROR_CLASS}" style="color: #E0245E;">${getLocalizedString(
       "errorNoSuggestionsAvailable"
     )}</div>`;
     return;
@@ -1060,7 +836,7 @@ function displaySuggestions(suggestions, container) {
       !Array.isArray(suggestionsToDisplay) ||
       suggestionsToDisplay.length === 0
     ) {
-      container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+      container.innerHTML = `<div class="${ERROR_CLASS}" style="color: #E0245E;">${getLocalizedString(
         "errorNoSuggestionsAvailable"
       )}</div>`;
       return;
@@ -1071,7 +847,7 @@ function displaySuggestions(suggestions, container) {
       if (!suggestion || !suggestion.variations) return;
 
       const suggestionDiv = document.createElement("div");
-      suggestionDiv.className = "magic-tweet-suggestion";
+      suggestionDiv.className = SUGGESTION_CLASS;
       suggestionDiv.style.cssText = `
         margin-bottom: 16px;
         padding: 12px;
@@ -1101,7 +877,7 @@ function displaySuggestions(suggestions, container) {
             `;
 
           return `
-          <div class="magic-tweet-variation" style="
+          <div class="${VARIATION_CLASS}" style="
             /* position: relative; removed */
             overflow: hidden; /* Contain the floated button */
             margin-bottom: 8px;
@@ -1111,11 +887,11 @@ function displaySuggestions(suggestions, container) {
             border-radius: 6px;
             color: #14171A;
           ">
-            <div class="magic-tweet-text" style="
+            <div class="${TEXT_CLASS}" style="
               color: #14171A;
               /* Side padding removed */
             ">${text}</div>
-            <button class="magic-tweet-copy" style="
+            <button class="${COPY_BUTTON_CLASS}" style="
               ${buttonFloatStyle}
               /* position: absolute; removed */
               /* bottom/left/right removed */
@@ -1142,7 +918,7 @@ function displaySuggestions(suggestions, container) {
       if (!variationsHtml) return;
 
       suggestionDiv.innerHTML = `
-        <div class="magic-tweet-tone" style="
+        <div class="${TONE_TEXT_CLASS}" style="
           font-weight: 500;
           margin-bottom: 8px;
           color: #14171A;
@@ -1150,101 +926,83 @@ function displaySuggestions(suggestions, container) {
         <div class="magic-tweet-variations">${variationsHtml}</div>
       `;
 
-      suggestionDiv.querySelectorAll(".magic-tweet-copy").forEach((button) => {
-        button.addEventListener("click", async () => {
-          const variationIndex = parseInt(button.dataset.variation);
-          const text = variations[variationIndex];
+      suggestionDiv
+        .querySelectorAll(`.${COPY_BUTTON_CLASS}`)
+        .forEach((button) => {
+          button.addEventListener("click", async () => {
+            const variationIndex = parseInt(button.dataset.variation);
+            const text = variations[variationIndex];
 
-          if (!text) return;
+            if (!text) return;
 
-          try {
-            await navigator.clipboard.writeText(text);
-            // Change background color and icon on success
-            button.innerHTML = SUCCESS_ICON_SVG;
-            button.style.backgroundColor = "#17BF63"; // Original success color
-            // button.style.opacity = "1"; // Remove opacity changes
+            try {
+              await navigator.clipboard.writeText(text);
+              // Change background color and icon on success
+              button.innerHTML = SUCCESS_ICON_SVG;
+              button.style.backgroundColor = "#17BF63"; // Original success color
+              // button.style.opacity = "1"; // Remove opacity changes
 
-            setTimeout(() => {
-              // Restore original icon and background
-              button.innerHTML = COPY_ICON_SVG;
-              button.style.backgroundColor = "#1DA1F2"; // Original blue color
-              // button.style.opacity = "0.7"; // Remove opacity changes
-            }, 2000);
+              setTimeout(() => {
+                // Restore original icon and background
+                button.innerHTML = COPY_ICON_SVG;
+                button.style.backgroundColor = "#1DA1F2"; // Original blue color
+                // button.style.opacity = "0.7"; // Remove opacity changes
+              }, 2000);
 
-            document.getElementById("magic-tweet-panel").style.display = "none";
-          } catch (err) {
-            console.error("Failed to copy text:", err);
-            // Change background color and icon on failure
-            button.innerHTML = ERROR_ICON_SVG;
-            button.style.backgroundColor = "#E0245E"; // Original error color
-            // button.style.opacity = "1"; // Remove opacity changes
+              document.getElementById(SUGGESTION_PANEL_ID).style.display =
+                "none";
+            } catch (err) {
+              console.error("Failed to copy text:", err);
+              // Change background color and icon on failure
+              button.innerHTML = ERROR_ICON_SVG;
+              button.style.backgroundColor = "#E0245E"; // Original error color
+              // button.style.opacity = "1"; // Remove opacity changes
 
-            setTimeout(() => {
-              // Restore original icon and background
-              button.innerHTML = COPY_ICON_SVG;
-              button.style.backgroundColor = "#1DA1F2"; // Original blue color
-              // button.style.opacity = "0.7"; // Remove opacity changes
-            }, 2000);
-          }
+              setTimeout(() => {
+                // Restore original icon and background
+                button.innerHTML = COPY_ICON_SVG;
+                button.style.backgroundColor = "#1DA1F2"; // Original blue color
+                // button.style.opacity = "0.7"; // Remove opacity changes
+              }, 2000);
+            }
+          });
+
+          // Restore original hover effect (background color change)
+          button.addEventListener("mouseover", () => {
+            // Only change hover color if it's the default state
+            if (button.style.backgroundColor === "rgb(29, 161, 242)") {
+              // Check for #1DA1F2
+              button.style.backgroundColor = "#1a91da"; // Original hover color
+            }
+            // button.style.opacity = '1'; // Remove opacity changes
+          });
+          button.addEventListener("mouseout", () => {
+            // Restore background color based on current state (copy/success/error)
+            const currentIconHTML = button.innerHTML.trim();
+            if (currentIconHTML === COPY_ICON_SVG.trim()) {
+              button.style.backgroundColor = "#1DA1F2"; // Original blue
+            } else if (currentIconHTML === SUCCESS_ICON_SVG.trim()) {
+              // Keep success color on mouseout if success icon is showing
+              button.style.backgroundColor = "#17BF63";
+            } else if (currentIconHTML === ERROR_ICON_SVG.trim()) {
+              // Keep error color on mouseout if error icon is showing
+              button.style.backgroundColor = "#E0245E";
+            }
+            // button.style.opacity = '0.7'; // Remove opacity changes
+          });
         });
-
-        // Restore original hover effect (background color change)
-        button.addEventListener("mouseover", () => {
-          // Only change hover color if it's the default state
-          if (button.style.backgroundColor === "rgb(29, 161, 242)") {
-            // Check for #1DA1F2
-            button.style.backgroundColor = "#1a91da"; // Original hover color
-          }
-          // button.style.opacity = '1'; // Remove opacity changes
-        });
-        button.addEventListener("mouseout", () => {
-          // Restore background color based on current state (copy/success/error)
-          const currentIconHTML = button.innerHTML.trim();
-          if (currentIconHTML === COPY_ICON_SVG.trim()) {
-            button.style.backgroundColor = "#1DA1F2"; // Original blue
-          } else if (currentIconHTML === SUCCESS_ICON_SVG.trim()) {
-            // Keep success color on mouseout if success icon is showing
-            button.style.backgroundColor = "#17BF63";
-          } else if (currentIconHTML === ERROR_ICON_SVG.trim()) {
-            // Keep error color on mouseout if error icon is showing
-            button.style.backgroundColor = "#E0245E";
-          }
-          // button.style.opacity = '0.7'; // Remove opacity changes
-        });
-      });
 
       container.appendChild(suggestionDiv);
     });
 
-    // Update theme for newly added suggestions
-    const isDark =
-      document.documentElement.getAttribute("data-theme") === "dark";
-    const updateTheme = (isDark) => {
-      const suggestions = container.querySelectorAll(".magic-tweet-suggestion");
-      suggestions.forEach((suggestion) => {
-        suggestion.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-        suggestion.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-        suggestion.style.color = isDark ? "#FFFFFF" : "#14171A";
-      });
-
-      const variations = container.querySelectorAll(".magic-tweet-variation");
-      variations.forEach((variation) => {
-        variation.style.backgroundColor = isDark ? "#15202B" : "#FFFFFF";
-        variation.style.borderColor = isDark ? "#38444D" : "#E1E8ED";
-      });
-
-      const texts = container.querySelectorAll(
-        ".magic-tweet-text, .magic-tweet-tone"
-      );
-      texts.forEach((text) => {
-        text.style.color = isDark ? "#FFFFFF" : "#14171A";
-      });
-    };
-
-    updateTheme(isDark);
+    // Instead, directly theme the new elements based on global theme state
+    themeNewlyAddedSuggestions(
+      container,
+      window.MagicTweetExtension.currentThemeIsDark
+    );
   } catch (error) {
     console.error("Error displaying suggestions:", error);
-    container.innerHTML = `<div class="magic-tweet-error" style="color: #E0245E;">${getLocalizedString(
+    container.innerHTML = `<div class="${ERROR_CLASS}" style="color: #E0245E;">${getLocalizedString(
       "errorDisplayingSuggestions"
     )}</div>`;
   }
@@ -1267,26 +1025,23 @@ function debounce(func, wait) {
 async function initialize() {
   if (
     window.MagicTweetExtension.isInitialized &&
-    document.getElementById("magic-tweet-icon")
+    document.getElementById(ICON_ID)
   ) {
     // If already initialized and icon exists, try to re-attach to a new composer if found,
     // but don't re-run full initialization.
     const tweetCompose = findTweetComposer();
-    if (
-      tweetCompose &&
-      !document.getElementById("magic-tweet-icon").isConnected
-    ) {
+    if (tweetCompose && !document.getElementById(ICON_ID).isConnected) {
       // Check if icon got detached
-      const icon = document.getElementById("magic-tweet-icon");
+      const icon = document.getElementById(ICON_ID);
       // Re-add icon logic or ensure addIconToComposer handles this scenario
       // For now, we rely on the MutationObserver and polling to re-add if necessary
       // Or, if icon exists but isn't properly attached to *this* composer:
       // removeExtensionElements(); // Clean up old state
       // window.MagicTweetExtension.isInitialized = false; // force re-init by falling through
-    } else if (tweetCompose && document.getElementById("magic-tweet-icon")) {
+    } else if (tweetCompose && document.getElementById(ICON_ID)) {
       // Icon exists and a composer is found. Ensure event listeners are current if composer changed.
       // This might be complex, for now, allow re-init if current composer doesn't have icon logic
-      const currentIcon = document.getElementById("magic-tweet-icon");
+      const currentIcon = document.getElementById(ICON_ID);
       if (
         currentIcon &&
         currentIcon.style.display === "none" &&
@@ -1311,7 +1066,9 @@ async function initialize() {
 
   // Get initial language from storage
   try {
-    const result = await chrome.storage.local.get("userLanguage");
+    const result = await new Promise((resolve) =>
+      chrome.storage.local.get("userLanguage", resolve)
+    );
     const initialLang = result.userLanguage || "en"; // Default to English
     await setContentScriptLanguage(initialLang); // Await language setup
   } catch (e) {
@@ -1323,16 +1080,16 @@ async function initialize() {
   }
 
   // Initialize theme (after language potentially sets TONE_OPTIONS that theme might use)
-  initTheme();
+  await initTheme(); // Ensure this is awaited as initTheme is now async
 
   // Check if already initialized by another trigger (e.g. rapid mutation or polling)
   // This check is crucial to avoid multiple initializations.
   if (
     window.MagicTweetExtension.isInitialized &&
-    document.getElementById("magic-tweet-icon")
+    document.getElementById(ICON_ID)
   ) {
     const composer = findTweetComposer();
-    if (composer && document.getElementById("magic-tweet-icon")) {
+    if (composer && document.getElementById(ICON_ID)) {
       // If composer found and icon exists, make sure it's linked
       // Call addIconToComposer to ensure listeners are attached to the *current* composer
       // addIconToComposer already checks if icon exists and creates if not.
@@ -1355,16 +1112,16 @@ async function initialize() {
           mutations.some(
             (mutation) =>
               (mutation.target.id &&
-                mutation.target.id.startsWith("magic-tweet-")) ||
+                mutation.target.id.startsWith(EXT_NAMESPACE + "-")) ||
               (mutation.target.closest &&
-                mutation.target.closest('[id^="magic-tweet-"]')) ||
+                mutation.target.closest('[id^="' + EXT_NAMESPACE + '-"]')) ||
               (mutation.addedNodes &&
                 Array.from(mutation.addedNodes).some(
-                  (node) => node.id && node.id.startsWith("magic-tweet-")
+                  (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
                 )) ||
               (mutation.removedNodes &&
                 Array.from(mutation.removedNodes).some(
-                  (node) => node.id && node.id.startsWith("magic-tweet-")
+                  (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
                 ))
           )
         ) {
@@ -1372,7 +1129,7 @@ async function initialize() {
         }
 
         const tweetCompose = findTweetComposer();
-        const icon = document.getElementById("magic-tweet-icon");
+        const icon = document.getElementById(ICON_ID);
 
         if (!tweetCompose && icon && icon.isConnected) {
           // Check if icon is still in DOM
@@ -1422,7 +1179,7 @@ async function initialize() {
     }
     window.MagicTweetExtension.pollingInterval = setInterval(() => {
       const composer = findTweetComposer();
-      const icon = document.getElementById("magic-tweet-icon");
+      const icon = document.getElementById(ICON_ID);
       if (composer && (!icon || !icon.isConnected)) {
         // If composer exists but icon doesn't or is detached
         console.log(

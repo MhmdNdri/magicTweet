@@ -32,7 +32,7 @@
   "content_scripts": [
     {
       "matches": ["https://twitter.com/*", "https://x.com/*"],
-      "js": ["scripts/content.js"],
+      "js": ["scripts/content.js", "scripts/ui.js"],
       "run_at": "document_end",
       "all_frames": true
     }
