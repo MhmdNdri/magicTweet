@@ -487,3 +487,95 @@ h3::before {
   align-items: center;
   gap: 10px; /* Add some space between buttons */
 }
+
+.auth-section {
+  display: flex; /* Use flexbox to center the button */
+  justify-content: center; /* Center horizontally */
+  padding: 16px 0; /* Add some vertical padding */
+  margin-bottom: 16px; /* Space below the auth section */
+  border-bottom: 1px solid var(--border-color); /* Optional separator */
+}
+
+#loginWithTwitterButton {
+  background-color: var(--primary-color); /* Use your theme's primary color */
+  color: #ffffff; /* White text for good contrast on blue */
+  border: none;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600; /* Make text bold */
+  font-family: inherit; /* Inherit from body */
+  border-radius: 8px; /* Rounded corners */
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  display: flex; /* For icon and text alignment if an icon is added later */
+  align-items: center;
+  justify-content: center;
+  gap: 8px; /* Space between icon and text if an icon is added */
+  width: 100%; /* Make the button full width within its container */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+#loginWithTwitterButton:hover {
+  background-color: var(
+    --primary-hover
+  ); /* Use your theme's primary hover color */
+  transform: translateY(-1px); /* Slight lift on hover */
+}
+
+#loginWithTwitterButton:active {
+  transform: translateY(0px); /* Push down on click */
+  box-shadow: none; /* Remove shadow on click for a flatter look */
+}
+
+#loginWithTwitterButton:disabled {
+  background-color: var(--disabled-color);
+  color: var(--secondary-text-color);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Optional: If you want to add a Twitter icon using an SVG later, you can add styles for it */
+/*
+#loginWithTwitterButton .twitter-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+*/
+
+.logged-in-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+#loggedInMessage {
+  font-size: 16px;
+  color: var(--text-color);
+  margin-bottom: 16px;
+}
+
+#logoutTwitterButton {
+  background-color: var(
+    --error-color
+  ); /* Or another appropriate color for logout */
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  width: auto; /* Don't make it full width like login */
+}
+
+#logoutTwitterButton:hover {
+  background-color: #c71e52; /* Darker shade of error-color */
+}

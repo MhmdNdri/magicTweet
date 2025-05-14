@@ -25,6 +25,15 @@
     </header>
 
     <div class="main-content">
+      <div class="auth-section">
+        <button id="loginWithTwitterButton" data-i18n="loginWithTwitter">__MSG_loginWithTwitter__</button>
+      </div>
+      <div id="loggedInSection" class="logged-in-section" style="display: none;">
+        <p id="loggedInMessage" data-i18n="loggedInAsUser">__MSG_loggedInAsUser__</p>
+        <!-- We can add user info here later -->
+        <button id="logoutTwitterButton" data-i18n="logoutTwitter">__MSG_logoutTwitter__</button>
+      </div>
+
       <div class="welcome-section">
         <h2 data-i18n="welcomeHeading">__MSG_welcomeHeading__</h2>
         <p class="description" data-i18n="welcomeDescription">__MSG_welcomeDescription__</p>
@@ -106,5 +115,6 @@
   <script src="scripts/theme.js"></script>
   <script src="scripts/languageSwitcher.js"></script>
   <script src="scripts/settings.js"></script>
+  <script src="scripts/popup.js"></script>
 </body>
 </html>

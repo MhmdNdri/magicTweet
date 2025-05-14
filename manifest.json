@@ -4,8 +4,18 @@
   "version": "1.0.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-  "permissions": ["activeTab", "storage", "clipboardWrite", "scripting"],
-  "host_permissions": ["https://twitter.com/*", "https://x.com/*"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite",
+    "scripting",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://twitter.com/*",
+    "https://x.com/*",
+    "https://api.twitter.com/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

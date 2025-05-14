@@ -30,3 +30,6 @@ yarn-error.log*
 
 # Build output
 /dist 
+
+# Project specific TODO file
+TODO.txt 

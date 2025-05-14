@@ -214,5 +214,27 @@
   "aiProviderXAI": {
     "message": "XAI Grok",
     "description": "Label for the XAI radio button option."
+  },
+  "loginWithTwitter": {
+    "message": "Login with Twitter",
+    "description": "Button text for Twitter login"
+  },
+  "loggedInMessage": {
+    "message": "You are logged in with Twitter.",
+    "description": "Message shown when the user is authenticated with Twitter."
+  },
+  "logoutTwitter": {
+    "message": "Logout from Twitter",
+    "description": "Button text to logout from Twitter."
+  },
+  "loggedInAsUser": {
+    "message": "Logged in as @$USERNAME$",
+    "description": "Message shown with the user's Twitter handle. $USERNAME$ is a placeholder.",
+    "placeholders": {
+      "username": {
+        "content": "$1",
+        "example": "TwitterUser"
+      }
+    }
   }
 }

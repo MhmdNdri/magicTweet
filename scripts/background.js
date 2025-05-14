@@ -8,6 +8,14 @@ const XAI_API_KEY = "process.env.XAI_API_KEY";
 const XAI_API_URL = "https://api.x.ai/v1";
 const XAI_MODEL = "grok-3-mini-beta";
 
+// Twitter OAuth Configuration
+const TWITTER_CLIENT_ID = "U3ZVai1SNEpHdkJnMTFBeEEybmk6MTpjaQ"; // Your provided Client ID
+const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
+const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
+// Define the scopes your extension needs.
+// Common scopes: 'users.read', 'tweet.read', 'tweet.write', 'offline.access' (for refresh token)
+const TWITTER_SCOPES = ["users.read", "tweet.read", "offline.access"].join(" ");
+
 // Helper to load English messages for API prompts
 let englishMessages = {};
 async function loadEnglishMessages() {
@@ -37,9 +45,208 @@ function getEnglishMessage(key, fallbackKey) {
   return messageData ? messageData.message : fallbackKey;
 }
 
+// PKCE Helper: Generate a random string for the code verifier
+function generateCodeVerifier() {
+  const randomBytes = new Uint8Array(32);
+  crypto.getRandomValues(randomBytes);
+  return base64urlEncode(randomBytes);
+}
+
+// PKCE Helper: Base64URL encode
+function base64urlEncode(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+// PKCE Helper: Generate code challenge from verifier
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return base64urlEncode(digest);
+}
+
+let codeVerifierForOAuth;
+
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "generateSuggestions") {
+  if (request.type === "TWITTER_LOGIN") {
+    (async () => {
+      try {
+        codeVerifierForOAuth = generateCodeVerifier();
+        const codeChallenge = await generateCodeChallenge(codeVerifierForOAuth);
+
+        const redirectUri = chrome.identity.getRedirectURL();
+
+        const state = generateCodeVerifier(); // Use a random string for state
+
+        const authParams = new URLSearchParams({
+          response_type: "code",
+          client_id: TWITTER_CLIENT_ID,
+          redirect_uri: redirectUri,
+          scope: TWITTER_SCOPES,
+          state: state,
+          code_challenge: codeChallenge,
+          code_challenge_method: "S256",
+        });
+
+        const authUrl = `${TWITTER_AUTH_URL}?${authParams.toString()}`;
+
+        console.log("Background: Initiating Twitter OAuth. Auth URL:", authUrl);
+        console.log(
+          "Background: Redirect URI for launchWebAuthFlow:",
+          redirectUri
+        );
+
+        const oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
+          url: authUrl,
+          interactive: true,
+        });
+
+        console.log(
+          "Background: OAuth flow completed. Response URL:",
+          oauthResponseUrl
+        );
+
+        if (chrome.runtime.lastError || !oauthResponseUrl) {
+          throw new Error(
+            chrome.runtime.lastError?.message ||
+              "OAuth flow failed or was cancelled."
+          );
+        }
+
+        const url = new URL(oauthResponseUrl);
+        const returnedState = url.searchParams.get("state");
+        const authorizationCode = url.searchParams.get("code");
+        const error = url.searchParams.get("error");
+
+        if (error) {
+          throw new Error(
+            `OAuth Error: ${error} - ${
+              url.searchParams.get("error_description") || "No description"
+            }`
+          );
+        }
+
+        if (returnedState !== state) {
+          throw new Error(
+            "OAuth state parameter mismatch. Potential CSRF attack."
+          );
+        }
+
+        if (!authorizationCode) {
+          throw new Error("Authorization code not found in OAuth response.");
+        }
+
+        const tokenParams = new URLSearchParams({
+          code: authorizationCode,
+          grant_type: "authorization_code",
+          client_id: TWITTER_CLIENT_ID, // Client ID is also in the body as per PKCE spec
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifierForOAuth,
+        });
+
+        console.log(
+          "Background: Exchanging authorization code for token. Verifier:",
+          codeVerifierForOAuth
+        );
+
+        const tokenResponse = await fetch(TWITTER_TOKEN_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: tokenParams.toString(),
+        });
+
+        const tokenData = await tokenResponse.json();
+        console.log("Background: Token response data:", tokenData);
+
+        if (!tokenResponse.ok || tokenData.error) {
+          throw new Error(
+            tokenData.error_description ||
+              tokenData.error ||
+              `Failed to fetch tokens: ${tokenResponse.statusText}`
+          );
+        }
+
+        const {
+          access_token,
+          refresh_token,
+          expires_in,
+          scope: granted_scopes,
+        } = tokenData;
+
+        console.log(
+          "Background: Token exchange successful. Granted scopes:",
+          granted_scopes
+        );
+
+        if (!access_token) {
+          throw new Error("Access token not found in token response.");
+        }
+
+        const expiresAt = Date.now() + expires_in * 1000;
+
+        // Fetch user information
+        const userResponse = await fetch("https://api.twitter.com/2/users/me", {
+          method: "GET", // Explicitly set method, though GET is default
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            Accept: "application/json",
+          },
+          credentials: "omit", // Explicitly omit credentials (cookies)
+        });
+
+        if (!userResponse.ok) {
+          const responseBodyText = await userResponse.text();
+          let responseHeaders = {};
+          for (const [key, value] of userResponse.headers.entries()) {
+            responseHeaders[key] = value;
+          }
+          console.error(
+            "Background: Failed to fetch user info. Status:",
+            userResponse.status,
+            "Response Body:",
+            responseBodyText,
+            "Response Headers:",
+            responseHeaders
+          );
+          // Not throwing an error here, login itself was successful, but user info might be missing
+          // Proceed to store tokens anyway
+        }
+
+        const userData = userResponse.ok ? await userResponse.json() : null;
+        const twitterUser = userData?.data || {}; // { id, name, username }
+
+        await chrome.storage.local.set({
+          twitter_access_token: access_token,
+          twitter_refresh_token: refresh_token,
+          twitter_token_expires_at: expiresAt,
+          twitter_granted_scopes: granted_scopes,
+          twitter_user_info: twitterUser,
+        });
+
+        console.log(
+          "Background: Twitter tokens, granted scopes, and user info stored successfully.",
+          { granted_scopes, twitterUser }
+        );
+        sendResponse({ success: true, userInfo: twitterUser }); // Send user info back to popup
+      } catch (error) {
+        console.error(
+          "Background: Twitter OAuth Error:",
+          error.message,
+          error.stack
+        );
+        sendResponse({ error: error.message });
+      } finally {
+        codeVerifierForOAuth = null; // Clear the verifier
+      }
+    })();
+    return true; // Indicates that sendResponse will be called asynchronously.
+  } else if (request.action === "generateSuggestions") {
     const toneMessageKey = request.tone; // This is the key like "styleSarcastic"
     const aiProvider = request.aiProvider || "openai"; // Default to OpenAI if not specified
 
@@ -123,6 +330,115 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
 
     return true; // Keep the message channel open for async fetch response
+  }
+
+  // CHECK_TWITTER_LOGIN_STATUS handler
+  if (request.type === "CHECK_TWITTER_LOGIN_STATUS") {
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get([
+          "twitter_access_token",
+          "twitter_token_expires_at",
+          "twitter_user_info", // Get user info too
+        ]);
+
+        const token = result.twitter_access_token;
+        const expiresAt = result.twitter_token_expires_at;
+        const userInfo = result.twitter_user_info;
+
+        if (token && expiresAt > Date.now()) {
+          sendResponse({ isLoggedIn: true, userInfo: userInfo });
+        } else {
+          // If token expired but we had user info, don't send it as user is not actively logged in
+          sendResponse({ isLoggedIn: false });
+        }
+      } catch (e) {
+        console.error("Error checking login status in background:", e);
+        sendResponse({ isLoggedIn: false, error: e.message });
+      }
+    })();
+    return true; // Async response
+  }
+
+  // TWITTER_LOGOUT handler
+  if (request.type === "TWITTER_LOGOUT") {
+    (async () => {
+      try {
+        // First, try to revoke the token with Twitter if we have one
+        const tokenResult = await chrome.storage.local.get([
+          "twitter_access_token",
+        ]);
+        const accessToken = tokenResult.twitter_access_token;
+
+        if (accessToken) {
+          const revokeParams = new URLSearchParams({
+            token: accessToken,
+            client_id: TWITTER_CLIENT_ID, // Client_id in body
+            token_type_hint: "access_token",
+          });
+
+          const basicAuthHeader = "Basic " + btoa(TWITTER_CLIENT_ID + ":"); // Add Basic Auth for revoke
+
+          const revokeResponse = await fetch(
+            "https://api.twitter.com/2/oauth2/revoke",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                Authorization: basicAuthHeader, // Add Basic Auth header for revoke
+              },
+              body: revokeParams.toString(),
+            }
+          );
+
+          // Check if the response is OK and has content before trying to parse as JSON
+          if (
+            revokeResponse.ok &&
+            revokeResponse.headers.get("content-length") !== "0"
+          ) {
+            const revokeData = await revokeResponse.json();
+            if (revokeData.revoked) {
+              console.log(
+                "Background: Twitter token successfully revoked with API."
+              );
+            } else {
+              console.warn(
+                "Background: API indicated token not revoked or invalid response.",
+                revokeData
+              );
+            }
+          } else if (revokeResponse.ok) {
+            // OK response but no content, assume success for revoke
+            console.log(
+              "Background: Twitter token revocation request sent, received OK with no content."
+            );
+          } else {
+            // If not ok, try to get text error, but don't assume JSON
+            const errorText = await revokeResponse.text();
+            console.warn(
+              "Background: Failed to revoke Twitter token with API.",
+              revokeResponse.status,
+              errorText
+            );
+          }
+        }
+
+        // Always remove local tokens and user info
+        await chrome.storage.local.remove([
+          "twitter_access_token",
+          "twitter_refresh_token",
+          "twitter_token_expires_at",
+          "twitter_granted_scopes",
+          "twitter_user_info", // Clear user info on logout
+        ]);
+        console.log("Background: Local Twitter tokens and user info cleared.");
+        sendResponse({ success: true });
+      } catch (e) {
+        console.error("Background: Twitter Logout Error:", e.message, e.stack);
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true; // Async response
   }
 });
 
@@ -316,3 +632,35 @@ function parseSuggestions(content, tone) {
   console.log("Final suggestions object:", suggestions);
   return suggestions;
 }
+
+// You might also want a function to get the stored token
+async function getTwitterAccessToken() {
+  const result = await chrome.storage.local.get([
+    "twitter_access_token",
+    "twitter_token_expires_at",
+    "twitter_refresh_token",
+    "twitter_user_info", // Also retrieve user_info here if needed for other functions
+  ]);
+  if (chrome.runtime.lastError) {
+    console.error("Error retrieving token:", chrome.runtime.lastError);
+    return null;
+  }
+
+  if (
+    result.twitter_access_token &&
+    result.twitter_token_expires_at > Date.now()
+  ) {
+    return result.twitter_access_token;
+  } else if (result.twitter_refresh_token) {
+    // Implement token refresh logic here if the access token is expired
+    console.log("Access token expired or missing, refresh needed.");
+    // return await refreshTwitterToken(result.twitter_refresh_token); // You'll need to implement this
+    return null; // For now, just indicate refresh is needed
+  }
+  return null;
+}
+
+// TODO: Implement refreshTwitterToken(refreshToken) function
+// This function would use the TWITTER_TOKEN_URL with grant_type=refresh_token
+
+console.log("Background script loaded and Twitter OAuth handler ready.");
