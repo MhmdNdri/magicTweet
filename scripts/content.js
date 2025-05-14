@@ -349,25 +349,123 @@ function initTheme() {
 // Function to find tweet composer
 function findTweetComposer() {
   const selectors = [
-    '[data-testid="tweetTextarea_0"]',
-    '[data-testid="tweetTextarea_0RichTextInputContainer"]',
-    '[data-testid="tweetTextarea_1"]',
-    '[data-text="true"]',
-    '[role="textbox"]',
-    ".public-DraftEditor-content",
-    ".DraftEditor-root",
-    '[contenteditable="true"]',
+    // Most specific: Direct tweet text areas
+    { selector: '[data-testid="tweetTextarea_0"]', isInput: true },
+    { selector: '[data-testid="tweetTextarea_1"]', isInput: true }, // For replies/threads
+
+    // Specific containers - look for the actual input inside
+    {
+      selector: '[data-testid="tweetTextarea_0RichTextInputContainer"]',
+      inputSelector: '[role="textbox"], [contenteditable="true"]',
+    },
+
+    // General textboxes within Twitter's known UI structure for composing
+    // Try to be more specific than just [role="textbox"] globally
+    {
+      selector:
+        'div[data-testid="primaryColumn"] [role="textbox"][contenteditable="true"]',
+      isInput: true,
+    }, // Main composer in primary column
+    {
+      selector:
+        'div[aria-labelledby="modal-header"] [role="textbox"][contenteditable="true"]',
+      isInput: true,
+    }, // Composer in a modal
+
+    // More generic, but still somewhat scoped
+    { selector: '[data-text="true"]', isInput: true },
+    { selector: ".public-DraftEditor-content", isInput: true }, // Older editor structure
+    {
+      selector: ".DraftEditor-root",
+      inputSelector: '.public-DraftEditor-content, [contenteditable="true"]',
+    }, // Older editor structure
+
+    // Broadest contenteditable, only if it's likely part of a composer UI.
+    // Check its parent or grandparent for common composer data-testid attributes.
+    { selector: '[contenteditable="true"]', checkParent: true, isInput: true },
   ];
 
-  for (const selector of selectors) {
-    const element = document.querySelector(selector);
-    if (element) {
-      // Additional check to ensure we're in a tweet composer
-      const isTweetComposer =
-        element.closest('[data-testid="tweetTextarea_0"]') ||
-        element.closest('[data-testid="tweetTextarea_1"]') ||
-        element.closest('[role="textbox"]');
-      if (isTweetComposer) return element;
+  for (const item of selectors) {
+    const elements = document.querySelectorAll(item.selector);
+    for (const element of elements) {
+      if (item.isInput) {
+        // If element itself is supposed to be the input
+        // Add checks to ensure it's visible and not part of a displayed tweet
+        if (
+          element.offsetParent !== null &&
+          !element.closest('[data-testid="tweetText"]')
+        ) {
+          // Check if it's within a known composer structure more reliably
+          const composerParent = element.closest(
+            'div[data-testid^="tweetComposer"]'
+          ); // More generic composer parent
+          const modalComposer = element.closest(
+            'div[aria-labelledby="modal-header"]'
+          );
+          const mainTweetArea = element.closest(
+            '[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"]'
+          );
+
+          if (
+            composerParent ||
+            modalComposer ||
+            mainTweetArea ||
+            element.closest('[role="dialog"]')
+          ) {
+            // Added role=dialog for pop-up composers
+            return element;
+          }
+        }
+      } else if (item.inputSelector) {
+        // If element is a container, find the input within
+        const input = element.querySelector(item.inputSelector);
+        if (
+          input &&
+          input.offsetParent !== null &&
+          !input.closest('[data-testid="tweetText"]')
+        ) {
+          const composerParent = input.closest(
+            'div[data-testid^="tweetComposer"]'
+          );
+          const modalComposer = input.closest(
+            'div[aria-labelledby="modal-header"]'
+          );
+          const mainTweetArea = input.closest(
+            '[data-testid="tweetTextarea_0"], [data-testid="tweetTextarea_1"]'
+          );
+          if (
+            composerParent ||
+            modalComposer ||
+            mainTweetArea ||
+            input.closest('[role="dialog"]')
+          ) {
+            return input;
+          }
+        }
+      } else if (item.checkParent) {
+        // For generic [contenteditable="true"]
+        const parent = element.parentElement;
+        const grandParent = parent ? parent.parentElement : null;
+        if (
+          element.offsetParent !== null &&
+          !element.closest('[data-testid="tweetText"]') &&
+          ((parent &&
+            (parent.getAttribute("data-testid")?.includes("tweetTextarea") ||
+              parent.classList.contains("DraftEditor-root"))) ||
+            (grandParent &&
+              (grandParent
+                .getAttribute("data-testid")
+                ?.includes("tweetTextarea") ||
+                grandParent
+                  .getAttribute("data-testid")
+                  ?.startsWith("tweetComposer"))) ||
+            element.closest('div[aria-labelledby="modal-header"]') || // composer in modal
+            element.closest('div[data-testid^="tweetComposer"]')) && // any composer
+          element.textContent.length < 500 // Avoid large contenteditable blocks not for tweeting
+        ) {
+          return element;
+        }
+      }
     }
   }
   return null;
@@ -797,6 +895,17 @@ function removeExtensionElements() {
   });
 
   document.removeEventListener("click", handleOutsideClick);
+  // Clear polling interval if it exists
+  if (window.MagicTweetExtension.pollingInterval) {
+    clearInterval(window.MagicTweetExtension.pollingInterval);
+    window.MagicTweetExtension.pollingInterval = null;
+  }
+  // Disconnect observer
+  if (window.MagicTweetExtension.observer) {
+    window.MagicTweetExtension.observer.disconnect();
+    // window.MagicTweetExtension.observer = null; // Not strictly needed to nullify if re-created in init
+  }
+  window.MagicTweetExtension.isInitialized = false; // Reset initialization flag
 }
 
 // Function to add icon and panels to tweet composer
@@ -1156,7 +1265,49 @@ function debounce(func, wait) {
 
 // Initialize the content script
 async function initialize() {
-  if (window.MagicTweetExtension.isInitialized) return;
+  if (
+    window.MagicTweetExtension.isInitialized &&
+    document.getElementById("magic-tweet-icon")
+  ) {
+    // If already initialized and icon exists, try to re-attach to a new composer if found,
+    // but don't re-run full initialization.
+    const tweetCompose = findTweetComposer();
+    if (
+      tweetCompose &&
+      !document.getElementById("magic-tweet-icon").isConnected
+    ) {
+      // Check if icon got detached
+      const icon = document.getElementById("magic-tweet-icon");
+      // Re-add icon logic or ensure addIconToComposer handles this scenario
+      // For now, we rely on the MutationObserver and polling to re-add if necessary
+      // Or, if icon exists but isn't properly attached to *this* composer:
+      // removeExtensionElements(); // Clean up old state
+      // window.MagicTweetExtension.isInitialized = false; // force re-init by falling through
+    } else if (tweetCompose && document.getElementById("magic-tweet-icon")) {
+      // Icon exists and a composer is found. Ensure event listeners are current if composer changed.
+      // This might be complex, for now, allow re-init if current composer doesn't have icon logic
+      const currentIcon = document.getElementById("magic-tweet-icon");
+      if (
+        currentIcon &&
+        currentIcon.style.display === "none" &&
+        (tweetCompose.textContent || tweetCompose.innerText)
+      ) {
+        // If icon is hidden but should be visible for current composer, refresh its state
+        addIconToComposer(tweetCompose);
+      }
+      return; // Already initialized and seems okay
+    }
+  }
+
+  // Prevent re-initialization for a short period if recently attempted
+  const now = Date.now();
+  if (
+    window.MagicTweetExtension.lastInitAttempt &&
+    now - window.MagicTweetExtension.lastInitAttempt < 1000
+  ) {
+    return;
+  }
+  window.MagicTweetExtension.lastInitAttempt = now;
 
   // Get initial language from storage
   try {
@@ -1174,63 +1325,133 @@ async function initialize() {
   // Initialize theme (after language potentially sets TONE_OPTIONS that theme might use)
   initTheme();
 
-  if (window.MagicTweetExtension.isInitialized) return;
+  // Check if already initialized by another trigger (e.g. rapid mutation or polling)
+  // This check is crucial to avoid multiple initializations.
+  if (
+    window.MagicTweetExtension.isInitialized &&
+    document.getElementById("magic-tweet-icon")
+  ) {
+    const composer = findTweetComposer();
+    if (composer && document.getElementById("magic-tweet-icon")) {
+      // If composer found and icon exists, make sure it's linked
+      // Call addIconToComposer to ensure listeners are attached to the *current* composer
+      // addIconToComposer already checks if icon exists and creates if not.
+      // It also re-adds listeners, which is what we want if composer changed.
+      addIconToComposer(composer);
+    }
+    return;
+  }
 
   try {
-    // Clear any existing observers
+    // Clear any existing observers before creating a new one
     if (window.MagicTweetExtension.observer) {
       window.MagicTweetExtension.observer.disconnect();
     }
 
     const observer = new MutationObserver(
       debounce((mutations) => {
-        const tweetCompose = findTweetComposer();
-        const icon = document.getElementById("magic-tweet-icon");
-
-        // If there's no tweet composer but we have an icon, remove all elements
-        if (!tweetCompose && icon) {
-          removeExtensionElements();
+        // Filter out mutations caused by the extension itself
+        if (
+          mutations.some(
+            (mutation) =>
+              (mutation.target.id &&
+                mutation.target.id.startsWith("magic-tweet-")) ||
+              (mutation.target.closest &&
+                mutation.target.closest('[id^="magic-tweet-"]')) ||
+              (mutation.addedNodes &&
+                Array.from(mutation.addedNodes).some(
+                  (node) => node.id && node.id.startsWith("magic-tweet-")
+                )) ||
+              (mutation.removedNodes &&
+                Array.from(mutation.removedNodes).some(
+                  (node) => node.id && node.id.startsWith("magic-tweet-")
+                ))
+          )
+        ) {
           return;
         }
 
-        // Only add click listener if we're in a tweet composer
-        if (tweetCompose && !icon) {
-          const isTweetComposer =
-            tweetCompose.closest('[data-testid="tweetTextarea_0"]') ||
-            tweetCompose.closest('[data-testid="tweetTextarea_1"]') ||
-            tweetCompose.closest('[role="textbox"]');
+        const tweetCompose = findTweetComposer();
+        const icon = document.getElementById("magic-tweet-icon");
 
-          if (isTweetComposer) {
-            try {
-              addIconToComposer(tweetCompose);
-              initTheme(); // Initialize theme
-            } catch (error) {
-              handleExtensionError(error);
-            }
-          }
+        if (!tweetCompose && icon && icon.isConnected) {
+          // Check if icon is still in DOM
+          removeExtensionElements(); // This will also clear polling interval
+          window.MagicTweetExtension.isInitialized = false; // Ready for re-init if composer reappears
+          return;
         }
-      }, 500)
+
+        if (tweetCompose) {
+          // If composer found, ensure icon and panels are set up for it.
+          // addIconToComposer will create/append elements if they don't exist
+          // or ensure they are correctly associated with the current composer.
+          addIconToComposer(tweetCompose);
+          // initTheme(); // theme is handled by addIconToComposer/createPanel or globally.
+        }
+      }, 300) // Reduced debounce time slightly
     );
 
-    observer.observe(document.body, {
+    // Try to observe a more specific part of the page if possible.
+    // For Twitter, #react-root or a main content div might be candidates.
+    // Defaulting to document.body if a better selector isn't easily identifiable now.
+    let observeTarget = document.body;
+    const reactRoot = document.getElementById("react-root");
+    if (reactRoot) {
+      // Twitter often uses #react-root
+      const mainContent = reactRoot.querySelector("main"); // A common structure within react-root
+      if (mainContent) observeTarget = mainContent;
+      else observeTarget = reactRoot;
+    }
+
+    observer.observe(observeTarget, {
       childList: true,
       subtree: true,
-      attributes: false,
-      characterData: false,
     });
 
-    // Store the observer for cleanup
     window.MagicTweetExtension.observer = observer;
-    window.MagicTweetExtension.isInitialized = true;
 
     // Initial check
-    const tweetCompose = findTweetComposer();
-    if (tweetCompose) {
-      addIconToComposer(tweetCompose);
-      initTheme();
+    const initialTweetCompose = findTweetComposer();
+    if (initialTweetCompose) {
+      addIconToComposer(initialTweetCompose);
     }
+
+    // Fallback polling mechanism
+    if (window.MagicTweetExtension.pollingInterval) {
+      clearInterval(window.MagicTweetExtension.pollingInterval);
+    }
+    window.MagicTweetExtension.pollingInterval = setInterval(() => {
+      const composer = findTweetComposer();
+      const icon = document.getElementById("magic-tweet-icon");
+      if (composer && (!icon || !icon.isConnected)) {
+        // If composer exists but icon doesn't or is detached
+        console.log(
+          "Polling: Composer found, icon missing/detached. Adding icon."
+        );
+        addIconToComposer(composer);
+      } else if (!composer && icon && icon.isConnected) {
+        console.log(
+          "Polling: No composer, but icon exists. Removing elements."
+        );
+        removeExtensionElements();
+        window.MagicTweetExtension.isInitialized = false;
+      } else if (composer && icon && icon.isConnected) {
+        // If both exist, ensure the input handler is correctly updating visibility
+        // This is mostly handled by addIconToComposer if it's called, or by the input listener.
+        // We can also explicitly call the handler if needed.
+        const text = composer.textContent || composer.innerText || "";
+        const isEmpty =
+          !text.trim() || text === "" || text === "\\n" || text === "\\r\\n";
+        if (icon.style.display === (isEmpty ? "flex" : "none")) {
+          // If state is inverted
+          icon.style.display = isEmpty ? "none" : "flex";
+        }
+      }
+    }, 1500); // Check every 1.5 seconds
+
+    window.MagicTweetExtension.isInitialized = true;
   } catch (error) {
-    handleExtensionError(error);
+    handleExtensionError(error); // This already resets isInitialized and attempts re-init
   }
 }
 

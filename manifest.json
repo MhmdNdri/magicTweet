@@ -33,7 +33,8 @@
     {
       "matches": ["https://twitter.com/*", "https://x.com/*"],
       "js": ["scripts/content.js"],
-      "run_at": "document_end"
+      "run_at": "document_end",
+      "all_frames": true
     }
   ],
   "background": {
