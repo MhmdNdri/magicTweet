@@ -668,7 +668,23 @@ function ensureExtensionElementsExist() {
   }
   if (!suggestionPanel) {
     suggestionPanel = createSuggestionPanel();
-    if (suggestionPanel) document.body.appendChild(suggestionPanel);
+    if (suggestionPanel) {
+      document.body.appendChild(suggestionPanel);
+      // Listener for the new back button in suggestionPanel's header
+      const backButton = suggestionPanel.querySelector(
+        ".magic-tweet-header-back-button"
+      );
+      if (backButton && !backButton.dataset.listenerAttached) {
+        // Check if listener already attached
+        backButton.addEventListener("click", () => {
+          const sPanel = document.getElementById(SUGGESTION_PANEL_ID);
+          const tPanel = document.getElementById(TONE_PANEL_ID);
+          if (sPanel) sPanel.style.display = "none";
+          if (tPanel) tPanel.style.display = "block"; // Show the tone/variation panel
+        });
+        backButton.dataset.listenerAttached = "true"; // Mark as attached
+      }
+    }
   }
   if (!tonePanel) {
     tonePanel = createToneSelectionPanel();
@@ -716,15 +732,6 @@ function addIconToComposer(tweetCompose) {
   // Check initial state
   handleInput();
 
-  // Add click event listener to the icon
-  // Ensure icon listener is fresh if icon was re-created or composer changed
-  // A simple way is to clone and replace, or manage by a flag on the icon itself.
-  // For now, we rely on the fact that if addIconToComposer is called, we want to ensure the listener is active.
-  // If the icon element is the same, addEventListener typically doesn't duplicate for the same function reference.
-  // However, if `createFloatingIcon` is called multiple times leading to a new icon element,
-  // the old one might be detached and the new one needs its listener.
-  // The current ensureExtensionElementsExist handles getting the *current* icon.
-
   // To be absolutely sure we don't attach multiple click listeners to the *same icon instance* if this function is somehow called repeatedly
   // without the icon being re-created, we can use a flag, similar to the input listener.
   if (!icon.dataset.magicTweetClickListenerAdded) {
@@ -732,24 +739,46 @@ function addIconToComposer(tweetCompose) {
       e.preventDefault();
       e.stopPropagation();
 
-      // Ensure panels are fresh, in case they were re-created by ensureExtensionElementsExist or other logic
-      const currentSuggestionPanel =
-        document.getElementById(SUGGESTION_PANEL_ID);
-      const currentTonePanel = document.getElementById(TONE_PANEL_ID);
+      // Ensure panels exist and are in the DOM right before we try to show them.
+      // This helps prevent issues if elements were removed by other parts of the script (e.g., MutationObserver).
+      const { suggestionPanel: liveSuggestionPanel, tonePanel: liveTonePanel } =
+        ensureExtensionElementsExist();
+
+      // It's important that ensureExtensionElementsExist appends to body if elements are recreated,
+      // and that createToneSelectionPanel()/createSuggestionPanel() correctly initialize them (e.g., hidden).
+
+      const tweetCompose = findTweetComposer(); // Re-check composer, though icon click implies it was there.
+      if (!tweetCompose) {
+        // If composer disappeared between icon appearing and click, do nothing or hide.
+        if (liveSuggestionPanel) liveSuggestionPanel.style.display = "none";
+        if (liveTonePanel) liveTonePanel.style.display = "none";
+        return;
+      }
 
       const text = tweetCompose.textContent || tweetCompose.innerText || "";
       if (text.trim()) {
-        if (currentSuggestionPanel) {
-          currentSuggestionPanel.style.display = "none";
+        if (liveSuggestionPanel) {
+          liveSuggestionPanel.style.display = "none";
         }
-        if (currentTonePanel) {
-          currentTonePanel.style.display = "block";
-          // Position the panel (styles are mostly set, but ensure it's visible and positioned)
-          currentTonePanel.style.position = "fixed"; // Re-affirm if needed
-          currentTonePanel.style.right = "38%";
-          currentTonePanel.style.top = "calc(14% + 50px)";
-          currentTonePanel.style.zIndex = "10000";
+        if (liveTonePanel) {
+          liveTonePanel.style.display = "block";
+          // Re-apply essential styles to ensure visibility and positioning,
+          // especially if the panel was just recreated.
+          liveTonePanel.style.position = "fixed";
+          liveTonePanel.style.right = "38%";
+          liveTonePanel.style.top = "calc(14% + 50px)";
+          liveTonePanel.style.zIndex = "10000"; // Ensure it's on top
+        } else {
+          // This case should ideally not be reached if ensureExtensionElementsExist works correctly
+          // and createToneSelectionPanel (via ui.js) successfully creates and returns a panel.
+          console.error(
+            "MagicTweet: Tone panel could not be ensured or found for display after icon click."
+          );
         }
+      } else {
+        // If text becomes empty by the time of click, ensure panels are hidden, consistent with handleInput logic.
+        if (liveSuggestionPanel) liveSuggestionPanel.style.display = "none";
+        if (liveTonePanel) liveTonePanel.style.display = "none";
       }
     });
     icon.dataset.magicTweetClickListenerAdded = "true";
@@ -942,6 +971,7 @@ function displaySuggestions(suggestions, container) {
               button.style.backgroundColor = "#17BF63"; // Original success color
               // button.style.opacity = "1"; // Remove opacity changes
 
+
               setTimeout(() => {
                 // Restore original icon and background
                 button.innerHTML = COPY_ICON_SVG;
@@ -949,8 +979,7 @@ function displaySuggestions(suggestions, container) {
                 // button.style.opacity = "0.7"; // Remove opacity changes
               }, 2000);
 
-              document.getElementById(SUGGESTION_PANEL_ID).style.display =
-                "none";
+              // REMOVED: document.getElementById(SUGGESTION_PANEL_ID).style.display = "none";
             } catch (err) {
               console.error("Failed to copy text:", err);
               // Change background color and icon on failure

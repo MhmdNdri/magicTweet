@@ -159,7 +159,8 @@ function createBasePanel(
   id,
   panelClassName,
   headerTextKey,
-  initialContentSetupCallback
+  initialContentSetupCallback,
+  options = {}
 ) {
   const panel = document.createElement("div");
   panel.id = id;
@@ -192,10 +193,17 @@ function createBasePanel(
     padding-bottom: 8px;
     border-bottom: 1px solid #E1E8ED;
   `;
-  header.innerHTML = `
-    <span style="font-weight: 500;">${getLocalizedString(headerTextKey)}</span>
-    <button class="${CLOSE_BUTTON_CLASS}" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #14171A;">×</button>
-  `;
+
+  let headerHTML = "";
+  if (options.addBackButton) {
+    const BACK_ARROW_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>`;
+    headerHTML += `<button class="magic-tweet-header-back-button" style="background: none; border: none; font-size: 16px; cursor: pointer; color: inherit; margin-right: 10px; padding: 0; line-height: 0;">${BACK_ARROW_SVG}</button>`;
+  }
+  headerHTML += `<span style="font-weight: 500; flex-grow: 1;">${getLocalizedString(
+    headerTextKey
+  )}</span>`;
+  headerHTML += `<button class="${CLOSE_BUTTON_CLASS}" style="background: none; border: none; font-size: 20px; cursor: pointer; color: inherit; padding: 0; line-height: 0;">×</button>`;
+  header.innerHTML = headerHTML;
 
   const content = document.createElement("div");
   content.className = SUGGESTIONS_CLASS;
@@ -221,15 +229,16 @@ function createBasePanel(
       panel.style.display = "none";
     });
 
-  return { panel, contentDiv: content };
+  return { panel, contentDiv: content, headerElement: header };
 }
 
 function createSuggestionPanel() {
-  const { panel, contentDiv } = createBasePanel(
+  const { panel, contentDiv, headerElement } = createBasePanel(
     SUGGESTION_PANEL_ID,
     CONTAINER_CLASS,
     "suggestionPanelHeader",
-    null
+    null,
+    { addBackButton: true }
   );
 
   themeSuggestionPanelDOM(panel, window.MagicTweetExtension.currentThemeIsDark);
@@ -492,9 +501,6 @@ function displaySuggestions(suggestions, container) {
                 button.innerHTML = COPY_ICON_SVG;
                 button.style.backgroundColor = "#1DA1F2";
               }, 2000);
-
-              document.getElementById(SUGGESTION_PANEL_ID).style.display =
-                "none";
             } catch (err) {
               console.error("Failed to copy text:", err);
               button.innerHTML = ERROR_ICON_SVG;
