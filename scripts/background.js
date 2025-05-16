@@ -77,10 +77,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         codeVerifierForOAuth = generateCodeVerifier();
         const codeChallenge = await generateCodeChallenge(codeVerifierForOAuth);
-
         const redirectUri = chrome.identity.getRedirectURL();
-
-        const state = generateCodeVerifier(); // Use a random string for state
+        const state = generateCodeVerifier();
 
         const authParams = new URLSearchParams({
           response_type: "code",
@@ -91,20 +89,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           code_challenge: codeChallenge,
           code_challenge_method: "S256",
         });
-
         const authUrl = `${TWITTER_AUTH_URL}?${authParams.toString()}`;
-
         console.log("Background: Initiating Twitter OAuth. Auth URL:", authUrl);
-        console.log(
-          "Background: Redirect URI for launchWebAuthFlow:",
-          redirectUri
-        );
 
         const oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
           url: authUrl,
           interactive: true,
         });
-
         console.log(
           "Background: OAuth flow completed. Response URL:",
           oauthResponseUrl
@@ -129,13 +120,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }`
           );
         }
-
         if (returnedState !== state) {
           throw new Error(
             "OAuth state parameter mismatch. Potential CSRF attack."
           );
         }
-
         if (!authorizationCode) {
           throw new Error("Authorization code not found in OAuth response.");
         }
@@ -143,11 +132,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const tokenParams = new URLSearchParams({
           code: authorizationCode,
           grant_type: "authorization_code",
-          client_id: TWITTER_CLIENT_ID, // Client ID is also in the body as per PKCE spec
+          client_id: TWITTER_CLIENT_ID,
           redirect_uri: redirectUri,
           code_verifier: codeVerifierForOAuth,
         });
-
         console.log(
           "Background: Exchanging authorization code for token. Verifier:",
           codeVerifierForOAuth
@@ -155,12 +143,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         const tokenResponse = await fetch(TWITTER_TOKEN_URL, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: tokenParams.toString(),
         });
-
         const tokenData = await tokenResponse.json();
         console.log("Background: Token response data:", tokenData);
 
@@ -178,69 +163,119 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           expires_in,
           scope: granted_scopes,
         } = tokenData;
-
-        console.log(
-          "Background: Token exchange successful. Granted scopes:",
-          granted_scopes
-        );
-
         if (!access_token) {
           throw new Error("Access token not found in token response.");
         }
+        console.log(
+          "Background: Access Token obtained:",
+          access_token.substring(0, 10) + "..."
+        );
 
-        const expiresAt = Date.now() + expires_in * 1000;
+        // === Call your AWS Backend for user verification and data sync ===
+        const backendApiUrl =
+          "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
+        console.log(
+          "Background: Calling backend API for login/user-sync:",
+          backendApiUrl
+        );
 
-        // Fetch user information
-        const userResponse = await fetch("https://api.twitter.com/2/users/me", {
-          method: "GET", // Explicitly set method, though GET is default
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-            Accept: "application/json",
-          },
-          credentials: "omit", // Explicitly omit credentials (cookies)
-        });
+        let backendResponseData;
+        try {
+          const backendResponse = await fetch(backendApiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accessToken: access_token }), // Lambda defaults to 'login' action
+          });
+          backendResponseData = await backendResponse.json();
 
-        if (!userResponse.ok) {
-          const responseBodyText = await userResponse.text();
-          let responseHeaders = {};
-          for (const [key, value] of userResponse.headers.entries()) {
-            responseHeaders[key] = value;
+          if (!backendResponse.ok || !backendResponseData.userData) {
+            console.error(
+              "Background: Backend API call failed or did not return user data.",
+              backendResponse.status,
+              backendResponseData
+            );
+            throw new Error(
+              `Backend login process failed: ${
+                backendResponseData.message ||
+                backendResponse.statusText ||
+                "Unknown backend error"
+              }`
+            );
           }
-          console.error(
-            "Background: Failed to fetch user info. Status:",
-            userResponse.status,
-            "Response Body:",
-            responseBodyText,
-            "Response Headers:",
-            responseHeaders
+          console.log(
+            "Background: Backend API call successful. User data from backend:",
+            backendResponseData.userData
           );
-          // Not throwing an error here, login itself was successful, but user info might be missing
-          // Proceed to store tokens anyway
+        } catch (err) {
+          // This catches fetch errors or errors thrown from !backendResponse.ok check
+          console.error(
+            "Background: Error during backend API call for login:",
+            err
+          );
+          throw new Error(
+            `Failed to communicate with backend for login: ${err.message}`
+          );
         }
 
-        const userData = userResponse.ok ? await userResponse.json() : null;
-        const twitterUser = userData?.data || {}; // { id, name, username }
+        // If backend call was successful, proceed to store tokens and user info from backend
+        const expiresAt = Date.now() + expires_in * 1000;
+        const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https}
 
+        // Store tokens and user info (now sourced from backend)
         await chrome.storage.local.set({
           twitter_access_token: access_token,
           twitter_refresh_token: refresh_token,
           twitter_token_expires_at: expiresAt,
           twitter_granted_scopes: granted_scopes,
-          twitter_user_info: twitterUser,
+          twitter_user_info: {
+            // Adapt to the structure popup.js expects, if different
+            // popup.js currently expects: { id, username, name, profile_image_url }
+            id: userInfoFromBackend.id_str,
+            username: userInfoFromBackend.screen_name,
+            name: userInfoFromBackend.name,
+            profile_image_url: userInfoFromBackend.profile_image_url_https,
+          },
+          // Store login attempt result for popup toast
+          lastAuthAction: {
+            type: "login",
+            status: "success",
+            message:
+              chrome.i18n.getMessage("loginSuccessMessage") ||
+              "Login successful!",
+            timestamp: Date.now(),
+          },
         });
 
         console.log(
-          "Background: Twitter tokens, granted scopes, and user info stored successfully.",
-          { granted_scopes, twitterUser }
+          "Background: Twitter tokens, granted scopes, and user info (from backend) stored successfully."
         );
-        sendResponse({ success: true, userInfo: twitterUser }); // Send user info back to popup
+        // Send the structured userInfo that popup.js expects
+        sendResponse({
+          success: true,
+          userInfo: {
+            id: userInfoFromBackend.id_str,
+            username: userInfoFromBackend.screen_name,
+            name: userInfoFromBackend.name,
+            profile_image_url: userInfoFromBackend.profile_image_url_https,
+          },
+        });
       } catch (error) {
+        // This catches errors from OAuth steps or if backend communication failed as handled above
         console.error(
-          "Background: Twitter OAuth Error:",
+          "Background: TWITTER_LOGIN handler error:",
           error.message,
-          error.stack
+          error.stack ? error.stack.substring(0, 300) : ""
         );
-        sendResponse({ error: error.message });
+        // Store login attempt result for popup toast
+        chrome.storage.local.set({
+          lastAuthAction: {
+            type: "login",
+            status: "error",
+            message: error.message || chrome.i18n.getMessage("loginFailed"),
+            timestamp: Date.now(),
+          },
+        });
+        sendResponse({ error: error.message }); // popup.js doesn't use this directly for toast anymore
       } finally {
         codeVerifierForOAuth = null; // Clear the verifier
       }
@@ -363,79 +398,110 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // TWITTER_LOGOUT handler
   if (request.type === "TWITTER_LOGOUT") {
     (async () => {
+      let logoutSuccessful = false;
+      let errorMessage = "Logout failed.";
+
       try {
-        // First, try to revoke the token with Twitter if we have one
         const tokenResult = await chrome.storage.local.get([
-          "twitter_access_token",
+          "twitter_access_token", // We need the access token to tell the backend what to revoke
         ]);
-        const accessToken = tokenResult.twitter_access_token;
+        const accessTokenToRevoke = tokenResult.twitter_access_token;
 
-        if (accessToken) {
-          const revokeParams = new URLSearchParams({
-            token: accessToken,
-            client_id: TWITTER_CLIENT_ID, // Client_id in body
-            token_type_hint: "access_token",
-          });
+        if (accessTokenToRevoke) {
+          console.log(
+            "Background: Calling backend to revoke Twitter token:",
+            accessTokenToRevoke.substring(0, 10) + "..."
+          );
+          const backendApiUrl =
+            "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
 
-          const basicAuthHeader = "Basic " + btoa(TWITTER_CLIENT_ID + ":"); // Add Basic Auth for revoke
-
-          const revokeResponse = await fetch(
-            "https://api.twitter.com/2/oauth2/revoke",
-            {
+          try {
+            const backendResponse = await fetch(backendApiUrl, {
               method: "POST",
               headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-                Authorization: basicAuthHeader, // Add Basic Auth header for revoke
+                "Content-Type": "application/json",
+                // You might consider a custom header for action if not in body
+                // "X-Action": "logout",
               },
-              body: revokeParams.toString(),
-            }
-          );
+              body: JSON.stringify({
+                action: "logout",
+                tokenToRevoke: accessTokenToRevoke,
+              }),
+            });
 
-          // Check if the response is OK and has content before trying to parse as JSON
-          if (
-            revokeResponse.ok &&
-            revokeResponse.headers.get("content-length") !== "0"
-          ) {
-            const revokeData = await revokeResponse.json();
-            if (revokeData.revoked) {
+            const backendData = await backendResponse.json();
+            if (backendResponse.ok && backendData.success) {
               console.log(
-                "Background: Twitter token successfully revoked with API."
+                "Background: Backend successfully processed token revocation.",
+                backendData.message
               );
+              // Clear local tokens ONLY if backend was successful
+              await chrome.storage.local.remove([
+                "twitter_access_token",
+                "twitter_refresh_token",
+                "twitter_token_expires_at",
+                "twitter_granted_scopes",
+                "twitter_user_info", // Clear user info on logout
+              ]);
+              console.log(
+                "Background: Local Twitter tokens and user info cleared."
+              );
+              logoutSuccessful = true;
             } else {
+              errorMessage =
+                backendData.message ||
+                `Backend revocation failed: ${backendResponse.status}`;
               console.warn(
-                "Background: API indicated token not revoked or invalid response.",
-                revokeData
+                "Background: Backend reported an issue with token revocation.",
+                backendResponse.status,
+                errorMessage
               );
             }
-          } else if (revokeResponse.ok) {
-            // OK response but no content, assume success for revoke
-            console.log(
-              "Background: Twitter token revocation request sent, received OK with no content."
-            );
-          } else {
-            // If not ok, try to get text error, but don't assume JSON
-            const errorText = await revokeResponse.text();
-            console.warn(
-              "Background: Failed to revoke Twitter token with API.",
-              revokeResponse.status,
-              errorText
-            );
+          } catch (backendError) {
+            errorMessage = `Error calling backend for token revocation: ${backendError.message}`;
+            console.error("Background: " + errorMessage, backendError);
           }
+        } else {
+          // No local token found, so effectively logged out from extension's perspective.
+          // We can consider this a "success" for the client-side state.
+          console.log(
+            "Background: No local Twitter access token found. Already logged out locally."
+          );
+          logoutSuccessful = true; // Considered success from client state
         }
 
-        // Always remove local tokens and user info
-        await chrome.storage.local.remove([
-          "twitter_access_token",
-          "twitter_refresh_token",
-          "twitter_token_expires_at",
-          "twitter_granted_scopes",
-          "twitter_user_info", // Clear user info on logout
-        ]);
-        console.log("Background: Local Twitter tokens and user info cleared.");
-        sendResponse({ success: true });
+        // Store logout attempt result for popup toast
+        await chrome.storage.local.set({
+          lastAuthAction: {
+            type: "logout",
+            status: logoutSuccessful ? "success" : "error",
+            message: logoutSuccessful
+              ? chrome.i18n.getMessage("logoutSuccessMessage") ||
+                "Logout successful!"
+              : errorMessage,
+            timestamp: Date.now(),
+          },
+        });
+
+        if (logoutSuccessful) {
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false, error: errorMessage });
+        }
       } catch (e) {
-        console.error("Background: Twitter Logout Error:", e.message, e.stack);
-        sendResponse({ error: e.message });
+        // General error in the handler itself
+        errorMessage = `Twitter Logout Error: ${e.message}`;
+        console.error("Background: " + errorMessage, e.stack);
+        // Store logout attempt result for popup toast
+        chrome.storage.local.set({
+          lastAuthAction: {
+            type: "logout",
+            status: "error",
+            message: errorMessage,
+            timestamp: Date.now(),
+          },
+        });
+        sendResponse({ success: false, error: errorMessage });
       }
     })();
     return true; // Async response

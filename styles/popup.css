@@ -579,3 +579,46 @@ h3::before {
 #logoutTwitterButton:hover {
   background-color: #c71e52; /* Darker shade of error-color */
 }
+
+/* Toast Notification Styles */
+.toast {
+  visibility: hidden;
+  min-width: 250px;
+  max-width: 300px;
+  background-color: #333; /* Default dark background */
+  color: #fff;
+  text-align: center;
+  border-radius: 8px;
+  padding: 16px;
+  position: fixed;
+  z-index: 10001; /* Higher than other elements */
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  transition: opacity 0.5s, bottom 0.5s, visibility 0.5s;
+}
+
+.toast.show {
+  visibility: visible;
+  opacity: 1;
+  bottom: 50px; /* Slide up a bit */
+}
+
+.toast.error {
+  background-color: var(--error-color); /* Red for errors */
+  color: #fff;
+}
+
+.toast.success {
+  background-color: var(--success-color); /* Green for success */
+  color: #fff;
+}
+
+#errorMessageArea {
+  /* This area can be kept for non-toast critical errors or removed if toast is sufficient */
+  /* For now, let's ensure it doesn't overlap if toasts are used for primary feedback */
+  margin-bottom: 10px;
+}
