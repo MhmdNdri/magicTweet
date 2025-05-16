@@ -49,6 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // For a production extension, add a "loggingOut" message to your locales
   const loggingOutButtonText =
     chrome.i18n.getMessage("loggingOut") || "Logging out...";
+  const checkingStatusButtonText =
+    chrome.i18n.getMessage("checkingStatus") || "Checking status..."; // New loading text
 
   function updateUI(isLoggedIn, userInfo) {
     if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors
@@ -89,6 +91,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Check login status when popup opens
+  // Immediately set a loading state for the auth section
+  if (loginButton) {
+    loginButton.disabled = true;
+    loginButton.textContent = checkingStatusButtonText;
+  }
+  if (logoutButton) {
+    logoutButton.disabled = true; // Disable logout too during check
+  }
+
   chrome.runtime.sendMessage(
     { type: "CHECK_TWITTER_LOGIN_STATUS" },
     (response) => {
@@ -116,6 +127,17 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           updateUI(false);
         }
+      }
+      // Restore button states after check is complete, updateUI will handle correct visibility and text
+      if (loginButton) {
+        loginButton.disabled = false;
+        // updateUI will set the correct text if user is logged out (originalLoginButtonText)
+        // or hide it if logged in.
+      }
+      if (logoutButton) {
+        logoutButton.disabled = false;
+        // updateUI will set the correct text if user is logged in (originalLogoutButtonText)
+        // or hide it if logged out.
       }
 
       // After updating UI based on current login status, check for a recent auth action message

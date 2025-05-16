@@ -371,25 +371,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "CHECK_TWITTER_LOGIN_STATUS") {
     (async () => {
       try {
-        const result = await chrome.storage.local.get([
-          "twitter_access_token",
-          "twitter_token_expires_at",
-          "twitter_user_info", // Get user info too
-        ]);
+        const accessToken = await getValidAccessToken(); // Use the new function
 
-        const token = result.twitter_access_token;
-        const expiresAt = result.twitter_token_expires_at;
-        const userInfo = result.twitter_user_info;
-
-        if (token && expiresAt > Date.now()) {
-          sendResponse({ isLoggedIn: true, userInfo: userInfo });
+        if (accessToken) {
+          // If we have a valid token (meaning it's either fresh or was successfully refreshed),
+          // also fetch the user_info to send to the popup.
+          const userInfoResult = await chrome.storage.local.get(
+            "twitter_user_info"
+          );
+          sendResponse({
+            isLoggedIn: true,
+            userInfo: userInfoResult.twitter_user_info,
+          });
         } else {
-          // If token expired but we had user info, don't send it as user is not actively logged in
+          // If accessToken is null, it means user is not logged in or refresh failed.
+          // getValidAccessToken already handles clearing tokens and setting lastAuthAction if refresh failed.
           sendResponse({ isLoggedIn: false });
         }
       } catch (e) {
-        console.error("Error checking login status in background:", e);
-        sendResponse({ isLoggedIn: false, error: e.message });
+        // This catch is for unexpected errors in the handler itself or from getValidAccessToken if it throws.
+        console.error(
+          "Background: Error in CHECK_TWITTER_LOGIN_STATUS handler:",
+          e
+        );
+        // Ensure tokens are cleared if something went really wrong.
+        await clearLocalTokensAndLogoutState();
+        await chrome.storage.local.set({
+          lastAuthAction: {
+            type: "logout",
+            status: "error",
+            message:
+              chrome.i18n.getMessage("errorCheckingStatus") ||
+              "Error checking login status. Please log in.",
+            timestamp: Date.now(),
+          },
+        });
+        sendResponse({ isLoggedIn: false, error: e.message }); // Let popup know about the error.
       }
     })();
     return true; // Async response
@@ -726,7 +743,163 @@ async function getTwitterAccessToken() {
   return null;
 }
 
-// TODO: Implement refreshTwitterToken(refreshToken) function
-// This function would use the TWITTER_TOKEN_URL with grant_type=refresh_token
+// Helper function to clear all Twitter-related tokens and user info from storage
+async function clearLocalTokensAndLogoutState() {
+  console.log("Background: Clearing all local Twitter tokens and user info.");
+  await chrome.storage.local.remove([
+    "twitter_access_token",
+    "twitter_refresh_token",
+    "twitter_token_expires_at",
+    "twitter_granted_scopes",
+    "twitter_user_info",
+    "lastAuthAction", // Also clear any pending toast messages from previous state
+  ]);
+  // Optionally, notify popup or other parts of the extension that user is logged out
+  // For now, the next CHECK_TWITTER_LOGIN_STATUS will reflect this.
+}
+
+// Function to call the backend to refresh the Twitter access token
+async function refreshTwitterAccessToken(currentRefreshToken) {
+  if (!currentRefreshToken) {
+    console.warn(
+      "Background: refreshTwitterAccessToken called without a refresh token."
+    );
+    return { success: false, error: "No refresh token available." };
+  }
+
+  console.log(
+    "Background: Attempting to refresh Twitter access token via backend."
+  );
+  const backendApiUrl =
+    "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
+
+  try {
+    const backendResponse = await fetch(backendApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "refreshToken",
+        refreshToken: currentRefreshToken,
+      }),
+    });
+
+    const responseData = await backendResponse.json();
+
+    if (!backendResponse.ok || !responseData.access_token) {
+      console.error(
+        "Background: Backend refresh token call failed or did not return new access token.",
+        backendResponse.status,
+        responseData
+      );
+      // If refresh fails (e.g., token revoked by user, or other critical error from backend)
+      // it might be a good idea to clear local tokens as the refresh token might be invalid.
+      // The caller (getValidAccessToken) will typically handle this.
+      throw new Error(
+        responseData.message || "Failed to refresh token via backend."
+      );
+    }
+
+    console.log(
+      "Background: Successfully refreshed token via backend. New token data:",
+      responseData
+    );
+
+    const {
+      access_token,
+      expires_in,
+      refresh_token: new_refresh_token,
+      scope: new_scopes,
+    } = responseData;
+    const newExpiresAt = Date.now() + expires_in * 1000;
+
+    const itemsToStore = {
+      twitter_access_token: access_token,
+      twitter_token_expires_at: newExpiresAt,
+      // Only update refresh token if a new one is provided by Twitter
+      ...(new_refresh_token && { twitter_refresh_token: new_refresh_token }),
+      // Update scopes if provided, otherwise keep existing (or clear if policy dictates)
+      ...(new_scopes && { twitter_granted_scopes: new_scopes }),
+    };
+
+    await chrome.storage.local.set(itemsToStore);
+    console.log(
+      "Background: Stored new access token, expiry, and potentially new refresh token."
+    );
+
+    return { success: true, newAccessToken: access_token };
+  } catch (error) {
+    console.error(
+      "Background: Error in refreshTwitterAccessToken:",
+      error.message
+    );
+    // The getValidAccessToken function will handle clearing tokens if this fails critically.
+    return { success: false, error: error.message };
+  }
+}
+
+// Function to get a currently valid access token, refreshing if necessary
+async function getValidAccessToken() {
+  const storedData = await chrome.storage.local.get([
+    "twitter_access_token",
+    "twitter_refresh_token",
+    "twitter_token_expires_at",
+  ]);
+
+  const {
+    twitter_access_token: accessToken,
+    twitter_refresh_token: refreshToken,
+    twitter_token_expires_at: expiresAt,
+  } = storedData;
+
+  if (!accessToken) {
+    console.log("Background: No access token found. User needs to log in.");
+    await clearLocalTokensAndLogoutState(); // Ensure clean state
+    return null;
+  }
+
+  // Check if token is expired or nearing expiry (e.g., within next 5 minutes)
+  const bufferMilliseconds = 5 * 60 * 1000; // 5 minutes
+  if (Date.now() >= expiresAt - bufferMilliseconds) {
+    console.log(
+      "Background: Access token expired or nearing expiry. Attempting refresh."
+    );
+    if (!refreshToken) {
+      console.warn(
+        "Background: Access token expired, but no refresh token available to renew. Clearing tokens."
+      );
+      await clearLocalTokensAndLogoutState();
+      return null;
+    }
+
+    const refreshResult = await refreshTwitterAccessToken(refreshToken);
+    if (refreshResult.success && refreshResult.newAccessToken) {
+      console.log(
+        "Background: Token successfully refreshed. Returning new access token."
+      );
+      return refreshResult.newAccessToken;
+    } else {
+      console.error(
+        "Background: Failed to refresh access token. Clearing local tokens.",
+        refreshResult.error
+      );
+      await clearLocalTokensAndLogoutState();
+      // Store a lastAuthAction to inform popup about the forced logout due to refresh failure
+      await chrome.storage.local.set({
+        lastAuthAction: {
+          type: "logout", // Effectively a logout
+          status: "error",
+          message:
+            chrome.i18n.getMessage("sessionExpiredRefreshFailed") ||
+            "Session expired. Please log in again.",
+          timestamp: Date.now(),
+        },
+      });
+      return null;
+    }
+  } else {
+    console.log("Background: Existing access token is valid.");
+    return accessToken;
+  }
+}
 
 console.log("Background script loaded and Twitter OAuth handler ready.");

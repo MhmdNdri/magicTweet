@@ -17,6 +17,7 @@ const ssmClient = new SSMClient({ region });
 const USERS_TABLE_NAME = "Users";
 const TWITTER_API_KEY_SSM_NAME = "/my-extension/twitter/api-key";
 const TWITTER_API_SECRET_SSM_NAME = "/my-extension/twitter/api-key-secret";
+const TWITTER_TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
 
 let twitterAppClientCredentials = null;
 
@@ -215,6 +216,55 @@ async function revokeTwitterToken(tokenToRevoke) {
   }
 }
 
+async function exchangeRefreshToken(refreshTokenFromExtension) {
+  console.log("Attempting to exchange refresh token.");
+  if (!refreshTokenFromExtension) {
+    throw new Error("Refresh token is required.");
+  }
+
+  try {
+    const { clientId, clientSecret } = await getTwitterAppClientCredentials();
+    
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+    const bodyParams = new URLSearchParams();
+    bodyParams.append("grant_type", "refresh_token");
+    bodyParams.append("refresh_token", refreshTokenFromExtension);
+    bodyParams.append("client_id", clientId); // Twitter docs specify client_id in body as well
+
+    const response = await fetch(TWITTER_TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${basicAuth}`,
+      },
+      body: bodyParams.toString(),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      console.error("Twitter refresh token API error:", responseData);
+      throw new Error(
+        `Twitter token refresh failed with status ${response.status}: ${
+          responseData.error_description || responseData.error || "Unknown error"
+        }`
+      );
+    }
+
+    console.log("Successfully refreshed token with Twitter:", responseData);
+    // Expected responseData: { token_type, expires_in, access_token, scope, refresh_token (optional) }
+    return responseData;
+  } catch (error) {
+    console.error("Error in exchangeRefreshToken:", error);
+    throw new Error( // Re-throw a new error to avoid exposing too much internal detail potentially
+      error.message.startsWith("Twitter token refresh failed")
+        ? error.message
+        : "Failed to exchange refresh token with Twitter."
+    );
+  }
+}
+
 exports.handler = async (event) => {
   console.log(`Executing Lambda version: ${LAMBDA_CODE_VERSION}`);
   console.log("Event received:", JSON.stringify(event, null, 2));
@@ -254,7 +304,7 @@ exports.handler = async (event) => {
   }
 
   const action = requestBody.action || "login";
-  const { accessToken, tokenToRevoke } = requestBody || {};
+  const { accessToken, tokenToRevoke, refreshToken } = requestBody || {};
 
   try {
     if (action === "logout") {
@@ -360,6 +410,33 @@ exports.handler = async (event) => {
             name: twitterUser.name,
             profile_image_url_https: twitterUser.profile_image_url_https,
           },
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
+    } else if (action === "refreshToken") {
+      if (!refreshToken) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message: "Missing refreshToken for refreshToken action",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+      const newTokens = await exchangeRefreshToken(refreshToken);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+          message: "Token refreshed successfully.",
+          ...newTokens // Spread the new token data (access_token, expires_in, refresh_token (if any), scope)
         }),
         headers: {
           "Content-Type": "application/json",
