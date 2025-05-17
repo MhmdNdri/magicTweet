@@ -7,7 +7,7 @@ const {
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
 
-const LAMBDA_CODE_VERSION = "v1.0.3_SSM_FIX_CLIENT_ID_AND_TYPEHINT";
+const LAMBDA_CODE_VERSION = "v2.0.4_SUGGESTION_COUNT_FORMAT_FIX";
 
 const region = process.env.AWS_REGION || "eu-west-2";
 const ddbClient = new DynamoDBClient({ region });
@@ -17,9 +17,17 @@ const ssmClient = new SSMClient({ region });
 const USERS_TABLE_NAME = "Users";
 const TWITTER_API_KEY_SSM_NAME = "/my-extension/twitter/api-key";
 const TWITTER_API_SECRET_SSM_NAME = "/my-extension/twitter/api-key-secret";
+const OPENAI_API_KEY_SSM_NAME = "/my-extension/openai/api-key";
+const XAI_API_KEY_SSM_NAME = "/my-extension/xai/api-key";
+
 const TWITTER_TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
+const OPENAI_CHAT_COMPLETIONS_URL =
+  "https://api.openai.com/v1/chat/completions";
+const XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions";
 
 let twitterAppClientCredentials = null;
+let openAiApiKey = null;
+let xAiApiKey = null;
 
 // Function to get Twitter App Client ID and Secret from SSM
 async function getTwitterAppClientCredentials() {
@@ -98,6 +106,63 @@ async function getTwitterAppClientCredentials() {
     throw new Error( // Re-throw a generic error to avoid exposing too much detail
       "Failed to retrieve Twitter application credentials for revocation."
     );
+  }
+}
+
+// Function to get AI API Key from SSM based on provider
+async function getAiApiKey(aiProvider) {
+  if (aiProvider === "openai" && openAiApiKey) {
+    return openAiApiKey;
+  }
+  if (aiProvider === "xai" && xAiApiKey) {
+    return xAiApiKey;
+  }
+
+  let ssmParamName;
+  if (aiProvider === "openai") {
+    ssmParamName = OPENAI_API_KEY_SSM_NAME;
+  } else if (aiProvider === "xai") {
+    ssmParamName = XAI_API_KEY_SSM_NAME;
+  } else {
+    throw new Error(`Unsupported AI provider: ${aiProvider}`);
+  }
+
+  try {
+    console.log(
+      `Fetching ${aiProvider} API key from SSM. Name: ${ssmParamName}`
+    );
+    const command = new GetParametersCommand({
+      Names: [ssmParamName],
+      WithDecryption: true,
+    });
+    const { Parameters, InvalidParameters } = await ssmClient.send(command);
+
+    if (InvalidParameters && InvalidParameters.length > 0) {
+      console.error(
+        `Could not find SSM parameter ${ssmParamName} (InvalidParameters): ${InvalidParameters.join(
+          ", "
+        )}`
+      );
+      throw new Error(`Could not find SSM parameter: ${ssmParamName}`);
+    }
+    if (!Parameters || Parameters.length === 0 || !Parameters[0].Value) {
+      console.error(`SSM GetParameters returned no value for ${ssmParamName}.`);
+      throw new Error(
+        `SSM GetParameters returned no value for ${ssmParamName}.`
+      );
+    }
+
+    const apiKey = Parameters[0].Value;
+    if (aiProvider === "openai") {
+      openAiApiKey = apiKey;
+    } else if (aiProvider === "xai") {
+      xAiApiKey = apiKey;
+    }
+    console.log(`Successfully fetched and cached ${aiProvider} API key.`);
+    return apiKey;
+  } catch (error) {
+    console.error(`Error fetching ${aiProvider} API key from SSM:`, error);
+    throw new Error(`Failed to retrieve ${aiProvider} API key.`);
   }
 }
 
@@ -224,8 +289,10 @@ async function exchangeRefreshToken(refreshTokenFromExtension) {
 
   try {
     const { clientId, clientSecret } = await getTwitterAppClientCredentials();
-    
-    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString(
+      "base64"
+    );
 
     const bodyParams = new URLSearchParams();
     bodyParams.append("grant_type", "refresh_token");
@@ -236,7 +303,7 @@ async function exchangeRefreshToken(refreshTokenFromExtension) {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
       },
       body: bodyParams.toString(),
     });
@@ -247,7 +314,9 @@ async function exchangeRefreshToken(refreshTokenFromExtension) {
       console.error("Twitter refresh token API error:", responseData);
       throw new Error(
         `Twitter token refresh failed with status ${response.status}: ${
-          responseData.error_description || responseData.error || "Unknown error"
+          responseData.error_description ||
+          responseData.error ||
+          "Unknown error"
         }`
       );
     }
@@ -261,6 +330,99 @@ async function exchangeRefreshToken(refreshTokenFromExtension) {
       error.message.startsWith("Twitter token refresh failed")
         ? error.message
         : "Failed to exchange refresh token with Twitter."
+    );
+  }
+}
+
+async function performAiSuggestionRequest(
+  tweetText,
+  toneForApi,
+  aiProvider,
+  apiKey
+) {
+  let apiUrl, model, requestBody, headers;
+
+  // CORRECTED PROMPT: Ask for 5 suggestions, separated by newline, no numbering.
+  const systemMessage = `You are an AI assistant. Generate exactly 5 alternative tweet suggestions based on the following text and desired tone. Each suggestion should be concise and engaging. Output each suggestion on a new line. Do not use any numbering or bullet points. Desired tone: ${toneForApi}.`;
+  const userMessage = `Tweet text: "${tweetText}"`;
+
+  if (aiProvider === "openai") {
+    apiUrl = OPENAI_CHAT_COMPLETIONS_URL;
+    model = "gpt-4.1-nano";
+    requestBody = {
+      model: model,
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+    };
+    headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+  } else if (aiProvider === "xai") {
+    apiUrl = XAI_CHAT_COMPLETIONS_URL;
+    model = "grok-3-mini-beta";
+    requestBody = {
+      model: model,
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+    };
+    headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+  } else {
+    throw new Error("Invalid AI provider specified.");
+  }
+
+  console.log(
+    `Sending request to ${aiProvider} API. URL: ${apiUrl}, Model: ${model}`
+  );
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify(requestBody),
+  });
+
+  console.log(`${aiProvider} API status: ${response.status}`);
+  const responseBodyText = await response.text();
+  console.log(`${aiProvider} API raw response body: ${responseBodyText}`);
+
+  if (!response.ok) {
+    console.error(`${aiProvider} API error response: ${responseBodyText}`);
+    throw new Error(
+      `${aiProvider} API request failed with status ${response.status}: ${responseBodyText}`
+    );
+  }
+
+  try {
+    const responseData = JSON.parse(responseBodyText);
+
+    if (
+      responseData.choices &&
+      responseData.choices.length > 0 &&
+      responseData.choices[0].message &&
+      responseData.choices[0].message.content
+    ) {
+      return responseData.choices[0].message.content;
+    } else {
+      console.error(
+        `Invalid API response format from ${aiProvider}:`,
+        responseData
+      );
+      throw new Error(`Invalid API response format from ${aiProvider}`);
+    }
+  } catch (e) {
+    console.error(
+      `Error parsing ${aiProvider} API response or accessing content:`,
+      e
+    );
+    throw new Error(
+      `Error parsing ${aiProvider} API response. Raw text was: ${responseBodyText}`
     );
   }
 }
@@ -304,7 +466,14 @@ exports.handler = async (event) => {
   }
 
   const action = requestBody.action || "login";
-  const { accessToken, tokenToRevoke, refreshToken } = requestBody || {};
+  const {
+    accessToken,
+    tokenToRevoke,
+    refreshToken,
+    tweetText,
+    toneForApi,
+    aiProvider,
+  } = requestBody || {};
 
   try {
     if (action === "logout") {
@@ -434,9 +603,102 @@ exports.handler = async (event) => {
       const newTokens = await exchangeRefreshToken(refreshToken);
       return {
         statusCode: 200,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: "Token refreshed successfully.",
-          ...newTokens // Spread the new token data (access_token, expires_in, refresh_token (if any), scope)
+          ...newTokens, // Spread the new token data (access_token, expires_in, refresh_token (if any), scope)
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
+    } else if (action === "generateAiSuggestions") {
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Unauthorized: Missing Twitter access token.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+      if (!tweetText || !toneForApi || !aiProvider) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message:
+              "Missing required parameters for AI suggestions (tweetText, toneForApi, aiProvider).",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      // 1. Authenticate user via their Twitter token
+      try {
+        await getTwitterUserDetails(accessToken); // This will throw if token is invalid
+        console.log(
+          "User authenticated via Twitter token for AI suggestion request."
+        );
+      } catch (twitterAuthError) {
+        console.warn(
+          "Twitter token authentication failed for AI suggestion request:",
+          twitterAuthError.message
+        );
+        // Check if it's an ApiResponseError from twitter-api-v2 to get status code
+        let statusCode = 401; // Default to Unauthorized
+        if (
+          twitterAuthError.constructor &&
+          twitterAuthError.constructor.name === "ApiResponseError" &&
+          twitterAuthError.code
+        ) {
+          if (twitterAuthError.code === 401 || twitterAuthError.code === 403) {
+            // keep 401 for unauthorized, 403 for forbidden
+            statusCode = twitterAuthError.code;
+          } else {
+            // For other Twitter API errors (like 429 Too Many Requests, 500s), treat as a service error for this specific auth check
+            statusCode = 502; // Bad Gateway, as Twitter service had an issue validating
+          }
+        }
+        return {
+          statusCode: statusCode,
+          body: JSON.stringify({
+            message: `Twitter authentication failed: ${twitterAuthError.message}`,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      // 2. Get AI API Key
+      const aiApiKey = await getAiApiKey(aiProvider);
+
+      // 3. Perform AI Suggestion Request
+      const suggestionsContent = await performAiSuggestionRequest(
+        tweetText,
+        toneForApi,
+        aiProvider,
+        aiApiKey
+      );
+
+      // The 'suggestionsContent' is expected to be a string with variations.
+      // The client-side (background.js or content.js) will parse this into the desired structure.
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          message: "Suggestions generated successfully.",
+          suggestions: suggestionsContent,
         }),
         headers: {
           "Content-Type": "application/json",
@@ -496,6 +758,23 @@ exports.handler = async (event) => {
       // This specific error from getTwitterAppClientCredentials
       statusCode = 500; // Internal server error, can't proceed
       message = error.message;
+    }
+
+    if (action === "generateAiSuggestions") {
+      console.error(`Error in generateAiSuggestions action: ${error.message}`);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          message:
+            error.message ||
+            "Failed to generate AI suggestions due to an internal error.",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
     }
 
     return {

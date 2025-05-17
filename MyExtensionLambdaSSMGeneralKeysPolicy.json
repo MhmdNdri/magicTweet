@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": [
+        "arn:aws:ssm:eu-west-2:434793037153:parameter/my-extension/twitter/api-key",
+        "arn:aws:ssm:eu-west-2:434793037153:parameter/my-extension/twitter/api-key-secret",
+        "arn:aws:ssm:eu-west-2:434793037153:parameter/my-extension/openai/api-key",
+        "arn:aws:ssm:eu-west-2:434793037153:parameter/my-extension/xai/api-key"
+      ]
+    }
+  ]
+}

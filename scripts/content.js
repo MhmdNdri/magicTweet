@@ -28,6 +28,7 @@ const TONE_TEXT_CLASS = `${EXT_NAMESPACE}-tone`; // For the tone title in sugges
 const COPY_BUTTON_CLASS = `${EXT_NAMESPACE}-copy`;
 const RETRY_BUTTON_CLASS = `${EXT_NAMESPACE}-retry`;
 const ERROR_CLASS = `${EXT_NAMESPACE}-error`;
+const TOAST_ID = `${EXT_NAMESPACE}-content-toast`; // Added for content script toasts
 
 // These keys will be sent to the API. Their corresponding English messages will be used in the prompt.
 const API_TONE_MESSAGE_KEYS = {
@@ -241,7 +242,19 @@ function addToneButtonListeners(tonePanel) {
               );
             }
           } else if (response && response.error) {
-            showError(freshSuggestionPanel, response.error);
+            if (response.needsLogin) {
+              // Handle the case where user needs to log in
+              // For now, show error. A better UX might be to prompt login via popup.
+              showError(
+                freshSuggestionPanel,
+                response.error +
+                  " " +
+                  (getLocalizedString("guidanceOpenPopupToLogin") ||
+                    "Please open the extension popup to log in.")
+              );
+            } else {
+              showError(freshSuggestionPanel, response.error);
+            }
           } else {
             showError(
               freshSuggestionPanel,
@@ -481,66 +494,21 @@ function findTweetComposer() {
 }
 
 // Function to handle extension context invalidation
-function handleExtensionError(error) {
-  if (error.message.includes("Extension context invalidated")) {
-    const errorMessage = document.createElement("div");
-    errorMessage.style.position = "fixed";
-    errorMessage.style.top = "20px";
-    errorMessage.style.right = "20px";
-    errorMessage.style.backgroundColor = "#E0245E";
-    errorMessage.style.color = "white";
-    errorMessage.style.padding = "12px 20px";
-    errorMessage.style.borderRadius = "8px";
-    errorMessage.style.zIndex = "999999";
-    errorMessage.style.fontFamily =
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    errorMessage.textContent = getLocalizedString("errorRefreshExtension");
-    document.body.appendChild(errorMessage);
-    setTimeout(() => errorMessage.remove(), 5000);
-
-    // Remove all extension elements
-    removeExtensionElements();
-
-    // Reset initialization state
-    window.MagicTweetExtension.isInitialized = false;
-
-    // Wait for the page to be fully loaded before reinitializing
-    if (document.readyState === "complete") {
-      setTimeout(() => {
-        try {
-          initialize();
-        } catch (e) {
-          console.error("Failed to reinitialize:", e);
-          // Show a more specific error message
-          const reinitError = document.createElement("div");
-          reinitError.style.position = "fixed";
-          reinitError.style.top = "60px";
-          reinitError.style.right = "20px";
-          reinitError.style.backgroundColor = "#E0245E";
-          reinitError.style.color = "white";
-          reinitError.style.padding = "12px 20px";
-          reinitError.style.borderRadius = "8px";
-          reinitError.style.zIndex = "999999";
-          reinitError.style.fontFamily =
-            "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-          reinitError.textContent = getLocalizedString("errorReloadToRestore");
-          document.body.appendChild(reinitError);
-          setTimeout(() => reinitError.remove(), 5000);
-        }
-      }, 2000); // Increased delay to ensure page is stable
-    } else {
-      // If page is not fully loaded, wait for it
-      window.addEventListener("load", () => {
-        setTimeout(() => {
-          try {
-            initialize();
-          } catch (e) {
-            console.error("Failed to reinitialize:", e);
-          }
-        }, 2000);
-      });
-    }
-  }
+function handleExtensionError(
+  error,
+  contextMessage = "An unexpected error occurred"
+) {
+  console.error(`ContentScript Error: ${contextMessage}`, error);
+  // Also show a toast to the user
+  // Ensure getLocalizedString is available and i18n messages are loaded.
+  const displayMessage = `${getLocalizedString(
+    "errorPrefix",
+    "Error:"
+  )} ${getLocalizedString(
+    "contentScriptErrorEncountered",
+    "A problem occurred with the extension. Reloading might help."
+  )}`;
+  showContentScriptToast(displayMessage, "error", 5000); // Show for 5 seconds
 }
 
 // Function to handle clicks outside panels
@@ -971,7 +939,6 @@ function displaySuggestions(suggestions, container) {
               button.style.backgroundColor = "#17BF63"; // Original success color
               // button.style.opacity = "1"; // Remove opacity changes
 
-
               setTimeout(() => {
                 // Restore original icon and background
                 button.innerHTML = COPY_ICON_SVG;
@@ -1278,4 +1245,65 @@ try {
   chrome.runtime.sendMessage({ type: "contentScriptReady" });
 } catch (error) {
   handleExtensionError(error);
+}
+
+// NEW FUNCTION: Show a toast notification on the page
+function showContentScriptToast(message, type = "error", duration = 4000) {
+  let toastElement = document.getElementById(TOAST_ID);
+  if (!toastElement) {
+    toastElement = document.createElement("div");
+    toastElement.id = TOAST_ID;
+    // Apply styles BEFORE appending to avoid reflow if possible, though for a single element it's minor.
+    toastElement.style.position = "fixed";
+    toastElement.style.top = "20px";
+    toastElement.style.left = "50%";
+    toastElement.style.transform = "translateX(-50%)";
+    toastElement.style.padding = "12px 20px"; // Increased padding slightly
+    toastElement.style.borderRadius = "8px";
+    toastElement.style.zIndex = "20000"; // High z-index
+    toastElement.style.color = "white";
+    toastElement.style.textAlign = "center";
+    toastElement.style.fontSize = "14px"; // Explicit font size
+    toastElement.style.fontWeight = "500"; // Slightly bolder
+    toastElement.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+    toastElement.style.fontFamily =
+      'TwitterChirp, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    toastElement.style.opacity = "0"; // Start hidden for transition
+    toastElement.style.visibility = "hidden";
+    toastElement.style.transition =
+      "opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, top 0.3s ease-in-out"; // Added top transition
+
+    document.body.appendChild(toastElement);
+  }
+
+  toastElement.textContent = message;
+
+  if (type === "error") {
+    toastElement.style.backgroundColor = "#E0245E"; // Twitter error red
+  } else if (type === "success") {
+    toastElement.style.backgroundColor = "#17BF63"; // Twitter success green
+  } else {
+    // Default/info
+    toastElement.style.backgroundColor = "#1DA1F2"; // Twitter blue
+  }
+
+  // Show toast by moving it down slightly and fading in
+  requestAnimationFrame(() => {
+    toastElement.style.top = "30px"; // End position when visible
+    toastElement.style.visibility = "visible";
+    toastElement.style.opacity = "1";
+  });
+
+  // Hide after duration by moving it back up and fading out
+  setTimeout(() => {
+    toastElement.style.top = "20px"; // Start position before hiding
+    toastElement.style.opacity = "0";
+    // Set visibility to hidden after transition ends
+    setTimeout(() => {
+      if (toastElement.style.opacity === "0") {
+        // Check if it's still meant to be hidden
+        toastElement.style.visibility = "hidden";
+      }
+    }, 300); // Matches transition duration
+  }, duration);
 }
