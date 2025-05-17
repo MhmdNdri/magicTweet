@@ -316,6 +316,7 @@ function showError(panel, error) {
         background: var(--primary-color);
         color: white;
         border: none;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         padding: 8px 16px;
         border-radius: 20px;
         cursor: pointer;

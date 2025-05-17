@@ -7,7 +7,7 @@ const {
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
 
-const LAMBDA_CODE_VERSION = "v2.0.4_SUGGESTION_COUNT_FORMAT_FIX";
+const LAMBDA_CODE_VERSION = "v2.0.6_MAINTAIN_INPUT_LANGUAGE";
 
 const region = process.env.AWS_REGION || "eu-west-2";
 const ddbClient = new DynamoDBClient({ region });
@@ -342,9 +342,8 @@ async function performAiSuggestionRequest(
 ) {
   let apiUrl, model, requestBody, headers;
 
-  // CORRECTED PROMPT: Ask for 5 suggestions, separated by newline, no numbering.
-  const systemMessage = `You are an AI assistant. Generate exactly 5 alternative tweet suggestions based on the following text and desired tone. Each suggestion should be concise and engaging. Output each suggestion on a new line. Do not use any numbering or bullet points. Desired tone: ${toneForApi}.`;
-  const userMessage = `Tweet text: "${tweetText}"`;
+  const systemMessage = `You are an AI assistant. Generate exactly 5 alternative tweet suggestions. Each suggestion should be concise, engaging, and output on a new line. Do not use any numbering or bullet points.`;
+  const userMessage = `Rewrite the following tweet in a ${toneForApi} tone AND IN THE SAME LANGUAGE AS THE ORIGINAL TWEET. Provide 5 variations. Original Tweet: "${tweetText}"`;
 
   if (aiProvider === "openai") {
     apiUrl = OPENAI_CHAT_COMPLETIONS_URL;

@@ -186,7 +186,6 @@ function addToneButtonListeners(tonePanel) {
         ? tweetCompose.textContent || tweetCompose.innerText
         : null;
 
-      // Get fresh references to panels inside the click handler
       const currentSuggestionPanel =
         document.getElementById(SUGGESTION_PANEL_ID);
       const currentTonePanel = document.getElementById(TONE_PANEL_ID);
@@ -212,7 +211,31 @@ function addToneButtonListeners(tonePanel) {
 
       chrome.storage.local.get([AI_PROVIDER_KEY], async (result) => {
         const aiProvider = result[AI_PROVIDER_KEY] || "openai";
+
+        // --- Start of new error handling for sendMessage ---
         try {
+          if (!chrome.runtime || !chrome.runtime.id) {
+            console.warn(
+              "ContentScript: Runtime context is invalid before sending message for suggestions."
+            );
+            showContentScriptToast(
+              getLocalizedString(
+                "errorExtensionNeedsReload",
+                "Extension context lost. Please try reloading the extension or page."
+              ),
+              "warning",
+              7000
+            );
+            // Hide loading state if shown
+            if (currentSuggestionPanel) {
+              const suggestionsContainer = currentSuggestionPanel.querySelector(
+                `.${SUGGESTIONS_CLASS}`
+              );
+              if (suggestionsContainer) suggestionsContainer.innerHTML = ""; // Clear loading
+            }
+            return;
+          }
+
           const response = await chrome.runtime.sendMessage({
             action: "generateSuggestions",
             text: text,
@@ -220,10 +243,43 @@ function addToneButtonListeners(tonePanel) {
             aiProvider: aiProvider,
           });
 
-          // Get a fresh reference to suggestionPanel again, as it might have been affected by async operations or DOM changes
+          if (chrome.runtime.lastError) {
+            if (
+              chrome.runtime.lastError.message &&
+              (chrome.runtime.lastError.message.includes(
+                "Extension context invalidated"
+              ) ||
+                chrome.runtime.lastError.message.includes(
+                  "Receiving end does not exist"
+                ))
+            ) {
+              console.warn(
+                "ContentScript: sendMessage failed - Extension context invalidated or receiving end missing.",
+                chrome.runtime.lastError.message
+              );
+              showContentScriptToast(
+                getLocalizedString(
+                  "errorExtensionNeedsReload",
+                  "Extension context lost. Please try reloading the extension or page."
+                ),
+                "warning",
+                7000
+              );
+              if (currentSuggestionPanel) {
+                const suggestionsContainer =
+                  currentSuggestionPanel.querySelector(`.${SUGGESTIONS_CLASS}`);
+                if (suggestionsContainer) suggestionsContainer.innerHTML = ""; // Clear loading
+              }
+              return;
+            }
+            // For other lastErrors, throw to be caught by the main catch block
+            throw new Error(chrome.runtime.lastError.message);
+          }
+          // --- End of new error handling for sendMessage ---
+
           const freshSuggestionPanel =
             document.getElementById(SUGGESTION_PANEL_ID);
-          if (!freshSuggestionPanel) return;
+          if (!freshSuggestionPanel) return; // Panel might have been removed
 
           if (response && response.suggestions) {
             const suggestions = response.suggestions;
@@ -262,16 +318,62 @@ function addToneButtonListeners(tonePanel) {
             );
           }
         } catch (error) {
-          console.error("Error generating suggestions:", error);
-          handleExtensionError(error);
-          // Get a fresh reference in case of error too
-          const freshSuggestionPanelOnError =
-            document.getElementById(SUGGESTION_PANEL_ID);
-          if (freshSuggestionPanelOnError) {
-            showError(
-              freshSuggestionPanelOnError,
-              getLocalizedString("errorFailedSuggestions")
+          // Log the actual error object and message to be sure
+          console.error(
+            "ContentScript: CAUGHT ERROR in generateSuggestions click handler:",
+            error
+          );
+          console.error("ContentScript: Error message was:", error.message);
+          console.error("ContentScript: Error name was:", error.name);
+          console.error(
+            "ContentScript: Error stack:",
+            error.stack ? error.stack.substring(0, 500) : "No stack"
+          );
+
+          // Check if the error is due to invalidated context
+          if (
+            error.message &&
+            (error.message
+              .toLowerCase()
+              .includes("extension context invalidated") || // make it case-insensitive
+              error.message
+                .toLowerCase()
+                .includes("receiving end does not exist"))
+          ) {
+            // make it case-insensitive
+            console.warn(
+              "ContentScript: Matched context error - Showing 'needs reload' toast.",
+              error.message
             );
+            showContentScriptToast(
+              getLocalizedString(
+                "errorExtensionNeedsReload",
+                "Extension context lost. Please try reloading the extension or page."
+              ),
+              "warning",
+              7000
+            );
+          } else {
+            console.warn(
+              "ContentScript: Did NOT match context error - Showing generic error."
+            );
+            // Fallback to generic error display for other errors
+            const errorDisplayPanel =
+              document.getElementById(SUGGESTION_PANEL_ID);
+            if (errorDisplayPanel) {
+              showError(
+                errorDisplayPanel,
+                error.message || getLocalizedString("errorFailedSuggestions")
+              );
+            }
+          }
+          // Ensure loading is cleared from panel if it was shown
+          const panelToClear = document.getElementById(SUGGESTION_PANEL_ID);
+          if (panelToClear) {
+            const suggestionsContainer = panelToClear.querySelector(
+              `.${SUGGESTIONS_CLASS}`
+            );
+            if (suggestionsContainer) suggestionsContainer.innerHTML = "";
           }
         }
       });
@@ -576,8 +678,9 @@ function showError(panel, error) {
       )}${error}</div>
       <button class="${RETRY_BUTTON_CLASS}" style="
         background: var(--primary-color);
-        color: white;
+        color: var(--button-text-color);
         border: none;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
         padding: 8px 16px;
         border-radius: 20px;
         cursor: pointer;

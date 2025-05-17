@@ -1,13 +1,3 @@
-// OpenAI API configuration
-// const OPENAI_API_KEY = "process.env.OPENAI_API_KEY";
-// const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-// const OPENAI_MODEL = "gpt-4.1-nano";
-
-// XAI API configuration
-// const XAI_API_KEY = "process.env.XAI_API_KEY";
-// const XAI_API_URL = "https://api.x.ai/v1";
-// const XAI_MODEL = "grok-3-mini-beta";
-
 // Twitter OAuth Configuration
 const TWITTER_CLIENT_ID = "U3ZVai1SNEpHdkJnMTFBeEEybmk6MTpjaQ"; // Your provided Client ID
 const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
