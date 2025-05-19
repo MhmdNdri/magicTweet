@@ -60,6 +60,22 @@ async function generateCodeChallenge(verifier) {
 
 let codeVerifierForOAuth;
 
+// Add this at the top of the file
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (
+    changeInfo.status === "complete" &&
+    tab.url &&
+    (tab.url.includes("twitter.com") || tab.url.includes("x.com"))
+  ) {
+    chrome.scripting
+      .executeScript({
+        target: { tabId: tabId },
+        files: ["scripts/content.js"],
+      })
+      .catch((err) => console.error("Failed to reload content script:", err));
+  }
+});
+
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "TWITTER_LOGIN") {
@@ -209,7 +225,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // If backend call was successful, proceed to store tokens and user info from backend
         const expiresAt = Date.now() + expires_in * 1000;
-        const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https}
+        const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget}
 
         // Store tokens and user info (now sourced from backend)
         await chrome.storage.local.set({
@@ -218,12 +234,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           twitter_token_expires_at: expiresAt,
           twitter_granted_scopes: granted_scopes,
           twitter_user_info: {
-            // Adapt to the structure popup.js expects, if different
-            // popup.js currently expects: { id, username, name, profile_image_url }
             id: userInfoFromBackend.id_str,
             username: userInfoFromBackend.screen_name,
             name: userInfoFromBackend.name,
             profile_image_url: userInfoFromBackend.profile_image_url_https,
+            number_requests: userInfoFromBackend.number_requests,
+            is_paid: userInfoFromBackend.is_paid,
+            budget: userInfoFromBackend.budget,
           },
           // Store login attempt result for popup toast
           lastAuthAction: {
@@ -247,6 +264,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             username: userInfoFromBackend.screen_name,
             name: userInfoFromBackend.name,
             profile_image_url: userInfoFromBackend.profile_image_url_https,
+            number_requests: userInfoFromBackend.number_requests,
+            is_paid: userInfoFromBackend.is_paid,
+            budget: userInfoFromBackend.budget,
           },
         });
       } catch (error) {
@@ -425,12 +445,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (accessToken) {
           // If we have a valid token (meaning it's either fresh or was successfully refreshed),
           // also fetch the user_info to send to the popup.
-          const userInfoResult = await chrome.storage.local.get(
+          const storedData = await chrome.storage.local.get(
             "twitter_user_info"
           );
+          // The storedData.twitter_user_info should now contain all fields including number_requests, is_paid, budget
           sendResponse({
             isLoggedIn: true,
-            userInfo: userInfoResult.twitter_user_info,
+            userInfo: storedData.twitter_user_info,
           });
         } else {
           // If accessToken is null, it means user is not logged in or refresh failed.

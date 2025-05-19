@@ -6,11 +6,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const loggedInSection = document.getElementById("loggedInSection");
   const logoutButton = document.getElementById("logoutTwitterButton");
   const loggedInMessageElement = document.getElementById("loggedInMessage");
+  const suggestionsCountMessageElement = document.getElementById(
+    "suggestionsCountMessage"
+  ); // New element
+  const suggestionsRemainingCountElement = document.getElementById(
+    "suggestionsRemainingCount"
+  ); // New element
   const errorMessageArea = document.getElementById("errorMessageArea"); // Get the error message display element
   const toastNotification = document.getElementById("toastNotification"); // Get toast element
 
   let toastTimeout = null; // To manage the toast hide timeout
   const POPUP_LOAD_TIME = Date.now(); // Timestamp for when popup loaded
+
+  const MAX_FREE_REQUESTS = 150; // Define this constant
 
   // Function to show toast notifications
   function showToast(message, type = "error") {
@@ -72,6 +80,28 @@ document.addEventListener("DOMContentLoaded", () => {
         loggedInMessageElement.textContent = message;
         loggedInMessageElement.removeAttribute("data-i18n");
       }
+      // Update suggestions count
+      if (
+        suggestionsCountMessageElement &&
+        suggestionsRemainingCountElement &&
+        userInfo.number_requests !== undefined
+      ) {
+        const isPaid = userInfo.is_paid || false;
+        const budget =
+          userInfo.budget === undefined
+            ? isPaid
+              ? 0
+              : MAX_FREE_REQUESTS
+            : userInfo.budget;
+        const currentRequests = userInfo.number_requests || 0;
+        const effectiveLimit = isPaid ? budget : MAX_FREE_REQUESTS;
+        const remaining = Math.max(0, effectiveLimit - currentRequests);
+
+        suggestionsRemainingCountElement.textContent = remaining;
+        suggestionsCountMessageElement.style.display = "block";
+      } else if (suggestionsCountMessageElement) {
+        suggestionsCountMessageElement.style.display = "none";
+      }
     } else if (isLoggedIn) {
       // Logged in but no user info (fallback)
       console.log(
@@ -84,9 +114,13 @@ document.addEventListener("DOMContentLoaded", () => {
           chrome.i18n.getMessage("loggedInMessage") || "Logged In";
         loggedInMessageElement.removeAttribute("data-i18n");
       }
+      if (suggestionsCountMessageElement)
+        suggestionsCountMessageElement.style.display = "none"; // Hide if not fully logged in with info
     } else {
       authSection?.style.setProperty("display", "flex");
       loggedInSection?.style.setProperty("display", "none", "important");
+      if (suggestionsCountMessageElement)
+        suggestionsCountMessageElement.style.display = "none"; // Hide on logout
     }
   }
 

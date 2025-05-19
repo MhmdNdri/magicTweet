@@ -553,15 +553,27 @@ exports.handler = async (event) => {
         twitter_name: twitterUser.name,
         twitter_profile_image_url: twitterUser.profile_image_url_https,
         last_login: now,
+        number_requests: 0,
+        is_paid: false,
+        budget: MAX_GENERATION_REQUESTS,
       };
 
       if (userRecord) {
         console.log(`User ${twitterId} exists. Updating...`);
         userItem.number_requests = userRecord.number_requests || 0;
+        userItem.is_paid = userRecord.is_paid || false;
+        userItem.budget =
+          userRecord.budget === undefined
+            ? userItem.is_paid
+              ? 0
+              : MAX_GENERATION_REQUESTS
+            : userRecord.budget;
       } else {
         console.log(`User ${twitterId} is new. Creating...`);
         userItem.created_at = now;
         userItem.number_requests = 0;
+        userItem.is_paid = false;
+        userItem.budget = MAX_GENERATION_REQUESTS;
       }
 
       const putItemParams = {
@@ -580,6 +592,9 @@ exports.handler = async (event) => {
             screen_name: twitterUser.screen_name,
             name: twitterUser.name,
             profile_image_url_https: twitterUser.profile_image_url_https,
+            number_requests: userItem.number_requests,
+            is_paid: userItem.is_paid,
+            budget: userItem.budget,
           },
         }),
         headers: {
@@ -724,15 +739,30 @@ exports.handler = async (event) => {
         };
       }
 
+      // Determine current usage and limits
       const currentRequests = userRecord.number_requests || 0;
-      if (currentRequests >= MAX_GENERATION_REQUESTS) {
+      const isPaidUser = userRecord.is_paid || false;
+      // If budget is undefined: paid users get 0, free users get MAX_GENERATION_REQUESTS
+      const userBudgetOrMax =
+        userRecord.budget === undefined
+          ? isPaidUser
+            ? 0
+            : MAX_GENERATION_REQUESTS
+          : userRecord.budget;
+
+      const effectiveLimit = isPaidUser
+        ? userBudgetOrMax
+        : MAX_GENERATION_REQUESTS;
+      const limitType = isPaidUser ? "budget" : "free request";
+
+      if (currentRequests >= effectiveLimit) {
         console.log(
-          `User ${twitterId} has reached the generation limit of ${MAX_GENERATION_REQUESTS}. Current: ${currentRequests}`
+          `User ${twitterId} has reached the ${limitType} limit of ${effectiveLimit}. Current: ${currentRequests}`
         );
         return {
           statusCode: 403, // Forbidden
           body: JSON.stringify({
-            message: "You have reached your maximum generation request limit.",
+            message: `You have reached your maximum ${limitType} limit.`,
             limitReached: true,
           }),
           headers: {

@@ -240,5 +240,13 @@
   "errorExtensionNeedsReload": {
     "message": "Magic Tweet had an issue. Please try reloading the extension from its settings, or reload this page.",
     "description": "Error shown when the extension's context is lost and it likely needs a reload."
+  },
+  "checkingStatus": {
+    "message": "Checking status...",
+    "description": "Button text when checking login status."
+  },
+  "suggestionsRemainingText": {
+    "message": "Suggestions remaining:",
+    "description": "Text displayed next to the number of AI suggestions the user has left."
   }
 }
