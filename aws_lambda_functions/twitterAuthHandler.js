@@ -3,6 +3,7 @@ const {
   DynamoDBDocumentClient,
   PutCommand,
   GetCommand,
+  UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
@@ -19,6 +20,8 @@ const TWITTER_API_KEY_SSM_NAME = "/my-extension/twitter/api-key";
 const TWITTER_API_SECRET_SSM_NAME = "/my-extension/twitter/api-key-secret";
 const OPENAI_API_KEY_SSM_NAME = "/my-extension/openai/api-key";
 const XAI_API_KEY_SSM_NAME = "/my-extension/xai/api-key";
+
+const MAX_GENERATION_REQUESTS = 150;
 
 const TWITTER_TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
 const OPENAI_CHAT_COMPLETIONS_URL =
@@ -641,9 +644,11 @@ exports.handler = async (event) => {
         };
       }
 
-      // 1. Authenticate user via their Twitter token
+      // 1. Authenticate user via their Twitter token and get their Twitter ID
+      let twitterUserAuthDetails;
       try {
-        await getTwitterUserDetails(accessToken); // This will throw if token is invalid
+        // We need twitterId to fetch the user record for request count
+        twitterUserAuthDetails = await getTwitterUserDetails(accessToken);
         console.log(
           "User authenticated via Twitter token for AI suggestion request."
         );
@@ -680,16 +685,99 @@ exports.handler = async (event) => {
         };
       }
 
-      // 2. Get AI API Key
+      const twitterId = twitterUserAuthDetails.id_str; // Get twitterId
+
+      // 2. Fetch user from DynamoDB to check request count
+      let userRecord;
+      try {
+        const getItemParams = {
+          TableName: USERS_TABLE_NAME,
+          Key: { twitter_id: twitterId },
+        };
+        const { Item } = await ddbDocClient.send(new GetCommand(getItemParams));
+        userRecord = Item;
+
+        if (!userRecord) {
+          // This case should ideally not happen if user is authenticated and was created/updated at login
+          // However, as a safeguard:
+          console.error(
+            `User ${twitterId} not found in DynamoDB despite successful auth. Allowing request but count will be 0.`
+          );
+          // Initialize a temporary user record for the purpose of this request
+          userRecord = { number_requests: 0, twitter_id: twitterId };
+        }
+      } catch (dbError) {
+        console.error(
+          "DynamoDB GetItem error for request count check:",
+          dbError
+        );
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Error fetching user data to check request limit.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      const currentRequests = userRecord.number_requests || 0;
+      if (currentRequests >= MAX_GENERATION_REQUESTS) {
+        console.log(
+          `User ${twitterId} has reached the generation limit of ${MAX_GENERATION_REQUESTS}. Current: ${currentRequests}`
+        );
+        return {
+          statusCode: 403, // Forbidden
+          body: JSON.stringify({
+            message: "You have reached your maximum generation request limit.",
+            limitReached: true,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      // 3. Get AI API Key
       const aiApiKey = await getAiApiKey(aiProvider);
 
-      // 3. Perform AI Suggestion Request
+      // 4. Perform AI Suggestion Request
       const suggestionsContent = await performAiSuggestionRequest(
         tweetText,
         toneForApi,
         aiProvider,
         aiApiKey
       );
+
+      // 5. Increment user's request count
+      try {
+        const updateItemParams = {
+          TableName: USERS_TABLE_NAME,
+          Key: { twitter_id: twitterId },
+          UpdateExpression:
+            "SET number_requests = if_not_exists(number_requests, :start) + :inc",
+          ExpressionAttributeValues: {
+            ":inc": 1,
+            ":start": 0,
+          },
+          ReturnValues: "UPDATED_NEW",
+        };
+        await ddbDocClient.send(new UpdateCommand(updateItemParams));
+        console.log(`Incremented request count for user ${twitterId}.`);
+      } catch (dbUpdateError) {
+        console.error(
+          `Failed to increment request count for user ${twitterId}:`,
+          dbUpdateError
+        );
+        // Decide if this error should fail the whole request or just be logged.
+        // For now, logging it, and the suggestion is still returned.
+        // Consider if a partial failure here is acceptable.
+      }
 
       // The 'suggestionsContent' is expected to be a string with variations.
       // The client-side (background.js or content.js) will parse this into the desired structure.
