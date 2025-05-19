@@ -472,6 +472,7 @@ async function initTheme() {
 
 // Function to find tweet composer
 function findTweetComposer() {
+  // console.log("MagicTweet: findTweetComposer() CALLED."); // Can be very noisy, disable for now
   const selectors = [
     // Most specific: Direct tweet text areas
     { selector: '[data-testid="tweetTextarea_0"]', isInput: true },
@@ -592,6 +593,7 @@ function findTweetComposer() {
       }
     }
   }
+  // console.log("MagicTweet: findTweetComposer() FAILED to find composer."); // Disable for now
   return null;
 }
 
@@ -703,6 +705,7 @@ function showError(panel, error) {
 
 // Function to remove all extension elements
 function removeExtensionElements() {
+  // REMOVED: console.log("MagicTweet: removeExtensionElements() CALLED.");
   const elements = [
     document.getElementById(ICON_ID),
     document.getElementById(SUGGESTION_PANEL_ID),
@@ -716,15 +719,17 @@ function removeExtensionElements() {
   document.removeEventListener("click", handleOutsideClick);
   // Clear polling interval if it exists
   if (window.MagicTweetExtension.pollingInterval) {
+    // REMOVED: console.log("MagicTweet: Clearing polling interval ID: ...");
     clearInterval(window.MagicTweetExtension.pollingInterval);
     window.MagicTweetExtension.pollingInterval = null;
   }
   // Disconnect observer
   if (window.MagicTweetExtension.observer) {
+    // REMOVED: console.log("MagicTweet: Disconnecting MutationObserver.");
     window.MagicTweetExtension.observer.disconnect();
-    // window.MagicTweetExtension.observer = null; // Not strictly needed to nullify if re-created in init
   }
   window.MagicTweetExtension.isInitialized = false; // Reset initialization flag
+  // REMOVED: console.log("MagicTweet: removeExtensionElements() COMPLETED. isInitialized: false.");
 }
 
 // Helper function to ensure icon and panels are in the DOM
@@ -1107,7 +1112,7 @@ function displaySuggestions(suggestions, container) {
   }
 }
 
-// Debounce function
+// Debounce function (ensure it's defined before use, typically at the top or in a utility section)
 function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
@@ -1122,6 +1127,10 @@ function debounce(func, wait) {
 
 // Initialize the content script
 async function initialize() {
+  // REMOVED: console.log(`MagicTweet: initialize() ENTRY. isInitialized: ${
+  //   window.MagicTweetExtension.isInitialized
+  // }, Icon DOM: ${!!document.getElementById(ICON_ID)}`);
+
   if (
     window.MagicTweetExtension.isInitialized &&
     document.getElementById(ICON_ID)
@@ -1204,71 +1213,72 @@ async function initialize() {
       window.MagicTweetExtension.observer.disconnect();
     }
 
-    const observer = new MutationObserver(
-      debounce((mutations) => {
-        // Filter out mutations caused by the extension itself
-        if (
-          mutations.some(
-            (mutation) =>
-              (mutation.target.id &&
-                mutation.target.id.startsWith(EXT_NAMESPACE + "-")) ||
-              (mutation.target.closest &&
-                mutation.target.closest('[id^="' + EXT_NAMESPACE + '-"]')) ||
-              (mutation.addedNodes &&
-                Array.from(mutation.addedNodes).some(
-                  (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
-                )) ||
-              (mutation.removedNodes &&
-                Array.from(mutation.removedNodes).some(
-                  (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
-                ))
-          )
-        ) {
-          return;
+    const observerCallback = debounce((mutations) => {
+      if (!mutations || typeof mutations.some !== "function") {
+        const composerCheck = findTweetComposer();
+        if (composerCheck && !document.getElementById(ICON_ID)) {
+          // Potentially keep a very specific log for this rare case if needed for future issues.
+          // console.log("MagicTweet Observer (no mutations check): Composer found, icon missing. Adding icon.");
+          addIconToComposer(composerCheck);
         }
+        return;
+      }
 
-        const tweetCompose = findTweetComposer();
-        const icon = document.getElementById(ICON_ID);
+      if (
+        mutations.some(
+          (mutation) =>
+            (mutation.target.id &&
+              mutation.target.id.startsWith(EXT_NAMESPACE + "-")) ||
+            (mutation.target.closest &&
+              mutation.target.closest('[id^="' + EXT_NAMESPACE + '-"]')) ||
+            (mutation.addedNodes &&
+              Array.from(mutation.addedNodes).some(
+                (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
+              )) ||
+            (mutation.removedNodes &&
+              Array.from(mutation.removedNodes).some(
+                (node) => node.id && node.id.startsWith(EXT_NAMESPACE + "-")
+              ))
+        )
+      ) {
+        return; // Ignore self-mutations
+      }
 
-        if (!tweetCompose && icon && icon.isConnected) {
-          // Check if icon is still in DOM
-          removeExtensionElements(); // This will also clear polling interval
-          window.MagicTweetExtension.isInitialized = false; // Ready for re-init if composer reappears
-          return;
-        }
+      const tweetCompose = findTweetComposer();
+      // REMOVED: console.log(`MagicTweet Observer: findTweetComposer result: ${
+      //   tweetCompose ? "Found" : "Not Found"
+      // }`);
 
-        if (tweetCompose) {
-          // If composer found, ensure icon and panels are set up for it.
-          // addIconToComposer will create/append elements if they don't exist
-          // or ensure they are correctly associated with the current composer.
-          addIconToComposer(tweetCompose);
-          // initTheme(); // theme is handled by addIconToComposer/createPanel or globally.
-        }
-      }, 300) // Reduced debounce time slightly
+      const icon = document.getElementById(ICON_ID);
+      if (!tweetCompose && icon && icon.isConnected) {
+        // REMOVED: console.log("MagicTweet Observer: Composer GONE, icon exists. ...");
+        removeExtensionElements();
+        return;
+      }
+      if (tweetCompose) {
+        addIconToComposer(tweetCompose);
+      }
+    }, 300);
+
+    window.MagicTweetExtension.observer = new MutationObserver(
+      observerCallback
     );
 
-    // Try to observe a more specific part of the page if possible.
-    // For Twitter, #react-root or a main content div might be candidates.
-    // Defaulting to document.body if a better selector isn't easily identifiable now.
     let observeTarget = document.body;
-    const reactRoot = document.getElementById("react-root");
-    if (reactRoot) {
-      // Twitter often uses #react-root
-      const mainContent = reactRoot.querySelector("main"); // A common structure within react-root
+    if (document.getElementById("react-root")) {
+      observeTarget = document.getElementById("react-root");
+      const mainContent = observeTarget.querySelector("main");
       if (mainContent) observeTarget = mainContent;
-      else observeTarget = reactRoot;
     }
 
-    observer.observe(observeTarget, {
+    window.MagicTweetExtension.observer.observe(observeTarget, {
       childList: true,
       subtree: true,
     });
 
-    window.MagicTweetExtension.observer = observer;
-
-    // Initial check
     const initialTweetCompose = findTweetComposer();
     if (initialTweetCompose) {
+      // REMOVED: console.log("MagicTweet initialize: Initial composer found, adding icon.");
       addIconToComposer(initialTweetCompose);
     }
 
@@ -1281,14 +1291,10 @@ async function initialize() {
       const icon = document.getElementById(ICON_ID);
       if (composer && (!icon || !icon.isConnected)) {
         // If composer exists but icon doesn't or is detached
-        console.log(
-          "Polling: Composer found, icon missing/detached. Adding icon."
-        );
+        console.log("MagicTweet Polling: Action - Adding icon.");
         addIconToComposer(composer);
       } else if (!composer && icon && icon.isConnected) {
-        console.log(
-          "Polling: No composer, but icon exists. Removing elements."
-        );
+        console.log("MagicTweet Polling: Action - Removing elements.");
         removeExtensionElements();
         window.MagicTweetExtension.isInitialized = false;
       } else if (composer && icon && icon.isConnected) {
@@ -1309,6 +1315,7 @@ async function initialize() {
   } catch (error) {
     handleExtensionError(error); // This already resets isInitialized and attempts re-init
   }
+  // REMOVED: console.log("MagicTweet: initialize() EXIT.");
 }
 
 // Listen for messages from the popup
@@ -1410,3 +1417,29 @@ function showContentScriptToast(message, type = "error", duration = 4000) {
     }, 300); // Matches transition duration
   }, duration);
 }
+
+// --- SPA Navigation Handling (with debounce) ---
+const debouncedInitialize = debounce(() => {
+  // REMOVED: console.log("MagicTweet: Debounced initialize triggered by SPA navigation.");
+  initialize();
+}, 300);
+
+function handleSPAnavigation() {
+  // REMOVED: console.log("MagicTweet: SPA navigation event detected.");
+  debouncedInitialize();
+}
+
+window.addEventListener("popstate", handleSPAnavigation);
+
+const originalPushState = history.pushState;
+history.pushState = function () {
+  originalPushState.apply(this, arguments);
+  handleSPAnavigation();
+};
+
+const originalReplaceState = history.replaceState;
+history.replaceState = function () {
+  originalReplaceState.apply(this, arguments);
+  handleSPAnavigation();
+};
+// --- End SPA Navigation Handling ---

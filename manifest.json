@@ -9,7 +9,8 @@
     "storage",
     "clipboardWrite",
     "scripting",
-    "identity"
+    "identity",
+    "tabs"
   ],
   "host_permissions": [
     "https://twitter.com/*",
@@ -35,9 +36,9 @@
   "content_scripts": [
     {
       "matches": ["https://twitter.com/*", "https://x.com/*"],
-      "js": ["scripts/content.js", "scripts/ui.js"],
+      "js": ["scripts/ui.js", "scripts/content.js"],
       "run_at": "document_end",
-      "all_frames": true
+      "all_frames": false
     }
   ],
   "background": {
@@ -46,7 +47,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/icon.svg"],
+      "resources": ["icons/icon.svg", "images/icon48.png"],
       "matches": ["*://*.twitter.com/*", "*://*.x.com/*"]
     }
   ]
