@@ -60,22 +60,6 @@ async function generateCodeChallenge(verifier) {
 
 let codeVerifierForOAuth;
 
-// Add this at the top of the file
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (
-    changeInfo.status === "complete" &&
-    tab.url &&
-    (tab.url.includes("twitter.com") || tab.url.includes("x.com"))
-  ) {
-    chrome.scripting
-      .executeScript({
-        target: { tabId: tabId },
-        files: ["scripts/content.js"],
-      })
-      .catch((err) => console.error("Failed to reload content script:", err));
-  }
-});
-
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "TWITTER_LOGIN") {
@@ -227,6 +211,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const expiresAt = Date.now() + expires_in * 1000;
         const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget}
 
+        // DETAILED LOGGING (NEW)
+        console.log(
+          "[DEBUG Background TWITTER_LOGIN] User info from backend to be stored:",
+          JSON.stringify(userInfoFromBackend, null, 2)
+        );
+
         // Store tokens and user info (now sourced from backend)
         await chrome.storage.local.set({
           twitter_access_token: access_token,
@@ -355,8 +345,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
 
-        // Assuming Lambda returns { message: "...", suggestions: "raw string suggestions" }
-        // The raw string suggestions need to be parsed just like before.
+        // Assuming Lambda returns { message: "...", suggestions: "raw string suggestions", updatedUser: { number_requests, is_paid, budget } }
         const parsedSuggestions = parseSuggestions(
           responseData.suggestions,
           toneForApi
@@ -366,6 +355,67 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           parsedSuggestions
         );
 
+        // After successfully getting suggestions, fetch updated user info
+        // to refresh local storage, so popup shows correct remaining count.
+        (async () => {
+          try {
+            const userAccessTokenForRefresh = await getValidAccessToken();
+            if (userAccessTokenForRefresh) {
+              console.log(
+                "Background: Attempting to refresh user info from backend after suggestion generation."
+              );
+              const refreshResponse = await fetch(backendApiUrl, {
+                // backendApiUrl is already defined in this scope
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "login", // Re-use login action to get full user profile
+                  accessToken: userAccessTokenForRefresh,
+                }),
+              });
+              const refreshData = await refreshResponse.json();
+              if (refreshResponse.ok && refreshData.userData) {
+                // Perform the same mapping as in the initial login flow
+                const mappedRefreshedUserInfo = {
+                  id: refreshData.userData.id_str,
+                  username: refreshData.userData.screen_name,
+                  name: refreshData.userData.name,
+                  profile_image_url:
+                    refreshData.userData.profile_image_url_https,
+                  number_requests: refreshData.userData.number_requests,
+                  is_paid: refreshData.userData.is_paid,
+                  budget: refreshData.userData.budget,
+                };
+                await chrome.storage.local.set({
+                  twitter_user_info: mappedRefreshedUserInfo, // Store the mapped object
+                });
+                console.log(
+                  "Background: Successfully refreshed local twitter_user_info with latest MAPPED data from backend.",
+                  mappedRefreshedUserInfo // Log the mapped object
+                );
+              } else {
+                console.warn(
+                  "Background: Failed to refresh user info from backend after suggestion. Status:",
+                  refreshResponse.status,
+                  "Data:",
+                  refreshData
+                );
+              }
+            } else {
+              console.warn(
+                "Background: No valid access token to refresh user info after suggestion."
+              );
+            }
+          } catch (refreshError) {
+            console.error(
+              "Background: Error during user info refresh after suggestion:",
+              refreshError
+            );
+          }
+        })(); // Self-invoking async function to not block sending suggestions
+
+        // Send suggestions back to the content script immediately.
+        // The user info refresh happens in the background.
         sendResponse({ suggestions: parsedSuggestions });
       } catch (error) {
         console.error(
@@ -448,7 +498,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const storedData = await chrome.storage.local.get(
             "twitter_user_info"
           );
-          // The storedData.twitter_user_info should now contain all fields including number_requests, is_paid, budget
+          // The storedData.twitter_user_info should now contain all fields
+
+          // DETAILED LOGGING (NEW)
+          console.log(
+            "[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] User info retrieved from storage:",
+            JSON.stringify(storedData.twitter_user_info, null, 2)
+          );
+
           sendResponse({
             isLoggedIn: true,
             userInfo: storedData.twitter_user_info,

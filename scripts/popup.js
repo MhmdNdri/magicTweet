@@ -87,20 +87,44 @@ document.addEventListener("DOMContentLoaded", () => {
         userInfo.number_requests !== undefined
       ) {
         const isPaid = userInfo.is_paid || false;
-        const budget =
-          userInfo.budget === undefined
-            ? isPaid
-              ? 0
-              : MAX_FREE_REQUESTS
-            : userInfo.budget;
-        const currentRequests = userInfo.number_requests || 0;
-        const effectiveLimit = isPaid ? budget : MAX_FREE_REQUESTS;
+        const currentRequests = Number(userInfo.number_requests) || 0;
+
+        let userBudgetAsNumber;
+        if (userInfo.budget !== undefined) {
+          userBudgetAsNumber = Number(userInfo.budget);
+          // If budget from userInfo is not a valid number, default appropriately
+          if (isNaN(userBudgetAsNumber)) {
+            console.warn(
+              `[popup.js] userInfo.budget ('${userInfo.budget}') is not a valid number.`
+            );
+            userBudgetAsNumber = isPaid ? 0 : MAX_FREE_REQUESTS;
+          }
+        } else {
+          // If budget is undefined in userInfo, default appropriately
+          userBudgetAsNumber = isPaid ? 0 : MAX_FREE_REQUESTS;
+        }
+
+        const effectiveLimit = isPaid ? userBudgetAsNumber : MAX_FREE_REQUESTS;
         const remaining = Math.max(0, effectiveLimit - currentRequests);
 
+        // Detailed logging for diagnostics
+        console.log("[popup.js] Suggestions Count Calculation:", {
+          rawUserInfo: JSON.parse(JSON.stringify(userInfo)), // Deep copy for safety
+          calculatedIsPaid: isPaid,
+          calculatedCurrentRequests: currentRequests,
+          parsedUserBudget: userBudgetAsNumber,
+          calculatedEffectiveLimit: effectiveLimit,
+          calculatedRemaining: remaining,
+          MAX_FREE_REQUESTS_CONST: MAX_FREE_REQUESTS,
+        });
+
         suggestionsRemainingCountElement.textContent = remaining;
-        suggestionsCountMessageElement.style.display = "block";
+        suggestionsCountMessageElement.style.display = "block"; // Make sure it's block, not inline
       } else if (suggestionsCountMessageElement) {
         suggestionsCountMessageElement.style.display = "none";
+        console.log(
+          "[popup.js] Hiding suggestions count message because user info or elements are incomplete."
+        );
       }
     } else if (isLoggedIn) {
       // Logged in but no user info (fallback)
