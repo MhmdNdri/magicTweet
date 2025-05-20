@@ -24,14 +24,14 @@ Magic Tweet seamlessly integrates with Twitter/X to offer intelligent content su
 - **Adaptive UI**: Supports both light and dark themes
 - **Internationalization**: Multi-language support
 - **Secure Authentication**: Twitter OAuth 2.0 with PKCE
-- **Cloud Infrastructure**: AWS Lambda backend with DynamoDB and SSM
+- **Cloud Infrastructure**: AWS Lambda backend with DynamoDB
 
 ## Technical Architecture
 
 - **Frontend**: Chrome Extension (Manifest V3)
 - **Backend**: AWS Lambda (Node.js)
 - **Database**: Amazon DynamoDB
-- **Security**: AWS SSM Parameter Store for API key management
+- **Security**: Twitter OAuth 2.0 with PKCE for secure authentication. API keys for AI services are embedded within the AWS Lambda function.
 - **Authentication**: Twitter OAuth 2.0 with PKCE
 - **AI Integration**: OpenAI GPT and X.AI Grok APIs
 
@@ -56,21 +56,13 @@ cd magic-tweet
 pnpm install
 ```
 
-3. Configure environment variables:
-   Create a `.env` file in the root directory:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-XAI_API_KEY=your_xai_api_key_here
-```
-
-4. Build the extension:
+3. Build the extension:
 
 ```bash
 pnpm run build
 ```
 
-5. Load the extension:
+4. Load the extension:
 
 - Chrome: Navigate to `chrome://extensions/`, enable "Developer mode", click "Load unpacked", and select the `dist` directory
 - Firefox: Go to `about:debugging#/runtime/this-firefox`, click "Load Temporary Add-on", and select `dist/manifest.json`
