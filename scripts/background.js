@@ -876,4 +876,13 @@ async function getValidAccessToken() {
   }
 }
 
-console.log("Background script loaded and Twitter OAuth handler ready.");
+// Remove or comment out these logs
+// console.log("Background script loaded and Twitter OAuth handler ready.");
+// console.log("Background: Loaded English messages for API prompts.");
+// console.log("Background: Existing access token is valid.");
+// console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] User info retrieved from storage:", ...);
+
+// Keep error logging
+console.error("Background: Error in CHECK_TWITTER_LOGIN_STATUS handler:", e);
+console.error("Background: Error during backend API call for login:", err);
+console.error("Background: Error in generateSuggestions handler:", error);

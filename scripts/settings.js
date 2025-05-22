@@ -21,7 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
         chrome.storage.local.set(
           { [AI_PROVIDER_KEY]: event.target.value },
           () => {
-            console.log("AI Provider preference saved:", event.target.value);
+            // Remove this log
+            // console.log("AI Provider preference saved:", event.target.value);
           }
         );
       }

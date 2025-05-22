@@ -63,19 +63,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateUI(isLoggedIn, userInfo) {
     if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors
 
-    console.log(
-      "[popup.js] updateUI called. isLoggedIn:",
-      isLoggedIn,
-      "Raw userInfo:",
-      userInfo
-    ); // Debugging line
     if (isLoggedIn && userInfo && userInfo.username) {
       authSection?.style.setProperty("display", "none", "important");
       loggedInSection?.style.setProperty("display", "flex");
       const username = userInfo.username;
-      console.log("[popup.js] Username to display:", username); // Debugging line
       const message = chrome.i18n.getMessage("loggedInAsUser", [username]);
-      console.log("[popup.js] Generated message from i18n:", message); // Debugging line
       if (loggedInMessageElement) {
         loggedInMessageElement.textContent = message;
         loggedInMessageElement.removeAttribute("data-i18n");
@@ -106,17 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const effectiveLimit = isPaid ? userBudgetAsNumber : MAX_FREE_REQUESTS;
         const remaining = Math.max(0, effectiveLimit - currentRequests);
-
-        // Detailed logging for diagnostics
-        console.log("[popup.js] Suggestions Count Calculation:", {
-          rawUserInfo: JSON.parse(JSON.stringify(userInfo)), // Deep copy for safety
-          calculatedIsPaid: isPaid,
-          calculatedCurrentRequests: currentRequests,
-          parsedUserBudget: userBudgetAsNumber,
-          calculatedEffectiveLimit: effectiveLimit,
-          calculatedRemaining: remaining,
-          MAX_FREE_REQUESTS_CONST: MAX_FREE_REQUESTS,
-        });
 
         suggestionsRemainingCountElement.textContent = remaining;
         suggestionsCountMessageElement.style.display = "block"; // Make sure it's block, not inline
@@ -172,15 +153,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // showToast(chrome.runtime.lastError.message || chrome.i18n.getMessage("errorCheckingStatus"));
         updateUI(false);
       } else {
-        console.log(
-          "[popup.js] CHECK_TWITTER_LOGIN_STATUS response:",
-          response
-        ); // Debugging line
         if (response && response.isLoggedIn && response.userInfo) {
-          console.log(
-            "User is already logged in with Twitter.",
-            response.userInfo
-          );
           updateUI(true, response.userInfo);
         } else {
           updateUI(false);
