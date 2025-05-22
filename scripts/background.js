@@ -304,7 +304,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         // Fetch AI provider from storage
         const data = await chrome.storage.local.get("magic-tweet-ai-provider");
-        const aiProvider = data["magic-tweet-ai-provider"] || "openai"; // Default to openai if not set
+        const aiProvider = data["magic-tweet-ai-provider"] || "gemini"; // Default to gemini if not set
         console.log("[Background.js] Using AI Provider:", aiProvider); // Log the provider being used
 
         const userAccessToken = await getValidAccessToken();

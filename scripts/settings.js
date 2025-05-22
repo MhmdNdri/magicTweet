@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load saved AI provider preference
   chrome.storage.local.get([AI_PROVIDER_KEY], (result) => {
-    const savedProvider = result[AI_PROVIDER_KEY] || "openai"; // Default to openai
+    const savedProvider = result[AI_PROVIDER_KEY] || "gemini"; // Default to gemini
     aiProviderRadios.forEach((radio) => {
       if (radio.value === savedProvider) {
         radio.checked = true;
