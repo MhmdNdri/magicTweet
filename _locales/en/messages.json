@@ -88,36 +88,36 @@
     "description": "Name for the Theatrical style."
   },
   "tonePlayfulFunny": {
-    "message": "Playful/Funny",
-    "description": "Tone option: Playful/Funny"
+    "message": "Playful & Funny",
+    "description": "Tone option: Playful & Funny"
   },
   "toneRomanticSoft": {
-    "message": "Romantic/Soft",
-    "description": "Tone option: Romantic/Soft"
+    "message": "Romantic & Soft",
+    "description": "Tone option: Romantic & Soft"
   },
   "toneMelancholicPoetic": {
-    "message": "Melancholic/Poetic",
-    "description": "Tone option: Melancholic/Poetic"
+    "message": "Melancholic & Poetic",
+    "description": "Tone option: Melancholic & Poetic"
   },
   "toneHopefulUplifting": {
-    "message": "Hopeful/Uplifting",
-    "description": "Tone option: Hopeful/Uplifting"
+    "message": "Hopeful & Uplifting",
+    "description": "Tone option: Hopeful & Uplifting"
   },
   "toneCynicalDarkHumor": {
-    "message": "Cynical/Dark Humor",
-    "description": "Tone option: Cynical/Dark Humor"
+    "message": "Cynical & Dark Humor",
+    "description": "Tone option: Cynical & Dark Humor"
   },
   "toneOverdramaticTheatrical": {
-    "message": "Overdramatic/Theatrical",
-    "description": "Tone option: Overdramatic/Theatrical"
+    "message": "Overdramatic & Theatrical",
+    "description": "Tone option: Overdramatic & Theatrical"
   },
   "toneMinimalistDry": {
-    "message": "Minimalist/Dry",
-    "description": "Tone option: Minimalist/Dry"
+    "message": "Minimalist & Dry",
+    "description": "Tone option: Minimalist & Dry"
   },
   "toneInspirationalMotivational": {
-    "message": "Inspirational/Motivational",
-    "description": "Tone option: Inspirational/Motivational"
+    "message": "Inspirational & Motivational",
+    "description": "Tone option: Inspirational & Motivational"
   },
   "errorRefreshExtension": {
     "message": "Magic Tweet extension needs to be refreshed. Please reload the page.",

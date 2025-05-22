@@ -4,43 +4,43 @@
     "description": "نام افزونه."
   },
   "extensionDescription": {
-    "message": "پیشنهادات توییت مبتنی بر هوش مصنوعی با لحن های مختلف",
+    "message": "پیشنهادات توییت مبتنی بر هوش مصنوعی با لحن‌های مختلف",
     "description": "توضیحات افزونه."
   },
   "popupTitle": {
     "message": "مجیک توییت",
-    "description": "عنوان پنجره پاپ آپ."
+    "description": "عنوان پنجره پاپ‌آپ."
   },
   "popupLogoAlt": {
     "message": "لوگوی مجیک توییت",
-    "description": "متن جایگزین برای تصویر لوگو در پاپ آپ."
+    "description": "متن جایگزین برای تصویر لوگو در پاپ‌آپ."
   },
   "popupHeader": {
     "message": "مجیک توییت",
-    "description": "عنوان اصلی در پاپ آپ."
+    "description": "عنوان اصلی در پاپ‌آپ."
   },
   "themeToggleLabel": {
     "message": "تغییر حالت تاریک",
-    "description": "برچسب دسترسی پذیری برای دکمه تغییر تم."
+    "description": "برچسب دسترسی‌پذیری برای دکمه تغییر تم."
   },
   "welcomeHeading": {
-    "message": "توییت های خود را متحول کنید",
-    "description": "عنوان خوش آمدگویی در پاپ آپ."
+    "message": "توییت‌های خود را متحول کنید",
+    "description": "عنوان خوش‌آمدگویی در پاپ‌آپ."
   },
   "welcomeDescription": {
-    "message": "حضور خود در رسانه های اجتماعی را با پیشنهادات لحن مبتنی بر هوش مصنوعی که باعث برجسته شدن توییت های شما می شود، تقویت کنید.",
-    "description": "پاراگراف توضیحات خوش آمدگویی در پاپ آپ."
+    "message": "حضور خود در شبکه‌های اجتماعی را با پیشنهادهای هوش مصنوعی برای توییت‌ها تقویت کنید و آن‌ها را متمایز نمایید.",
+    "description": "پاراگراف توضیحات خوش‌آمدگویی در پاپ‌آپ."
   },
   "howItWorksHeading": {
-    "message": "چگونه کار می کند",
-    "description": "عنوان بخش 'چگونه کار می کند'."
+    "message": "نحوه کار",
+    "description": "عنوان بخش 'چگونه کار می‌کند'."
   },
   "step1Heading": {
     "message": "شروع به نوشتن کنید",
     "description": "عنوان مرحله ۱."
   },
   "step1Description": {
-    "message": "شروع به نوشتن توییت خود در ویرایشگر توییتر کنید",
+    "message": "شروع به نوشتن توییت خود در بخش ساخت توییت توییتر کنید",
     "description": "توضیحات مرحله ۱."
   },
   "step2Heading": {
@@ -48,7 +48,7 @@
     "description": "عنوان مرحله ۲."
   },
   "step2Description": {
-    "message": "روی آیکون شناور عصای جادویی که ظاهر می شود کلیک کنید",
+    "message": "روی آیکون شناور عصای جادویی که ظاهر می‌شود، کلیک کنید",
     "description": "توضیحات مرحله ۲."
   },
   "step3Heading": {
@@ -56,68 +56,68 @@
     "description": "عنوان مرحله ۳."
   },
   "step3Description": {
-    "message": "لحنی را انتخاب کنید که با قصد شما مطابقت دارد",
+    "message": "لحنی را انتخاب کنید که با منظور شما مطابقت دارد",
     "description": "توضیحات مرحله ۳."
   },
   "availableStylesHeading": {
-    "message": "سبک های موجود",
-    "description": "عنوان بخش 'سبک های موجود'."
+    "message": "سبک‌های موجود",
+    "description": "عنوان بخش 'سبک‌های موجود'."
   },
   "styleSarcastic": {
-    "message": "کنایه آمیز",
-    "description": "نام برای سبک کنایه آمیز."
+    "message": "کنایه‌آمیز",
+    "description": "نام برای سبک کنایه‌آمیز."
   },
   "stylePlayful": {
-    "message": "بازیگوش",
-    "description": "نام برای سبک بازیگوش."
+    "message": "شوخ",
+    "description": "نام برای سبک بازیگوشانه."
   },
   "styleRomantic": {
-    "message": "رمانتیک",
-    "description": "نام برای سبک رمانتیک."
+    "message": "عاشقانه",
+    "description": "نام برای سبک عاشقانه."
   },
   "stylePoetic": {
     "message": "شاعرانه",
     "description": "نام برای سبک شاعرانه."
   },
   "styleUplifting": {
-    "message": "روحیه بخش",
-    "description": "نام برای سبک روحیه بخش."
+    "message": "امیدبخش",
+    "description": "نام برای سبک امیدبخش."
   },
   "styleTheatrical": {
-    "message": "نمایشی",
-    "description": "نام برای سبک نمایشی."
+    "message": "تئاتری",
+    "description": "نام برای سبک تئاتری."
   },
   "tonePlayfulFunny": {
-    "message": "بازیگوش/بامزه",
-    "description": "گزینه لحن: بازیگوش/بامزه"
+    "message": "شوخ و بامزه",
+    "description": "گزینه لحن: بازیگوش و بامزه"
   },
   "toneRomanticSoft": {
-    "message": "رمانتیک/لطیف",
-    "description": "گزینه لحن: رمانتیک/لطیف"
+    "message": "عاشقانه و لطیف",
+    "description": "گزینه لحن: عاشقانه و لطیف"
   },
   "toneMelancholicPoetic": {
-    "message": "مالیخولیایی/شاعرانه",
-    "description": "گزینه لحن: مالیخولیایی/شاعرانه"
+    "message": "غمگین و شاعرانه",
+    "description": "گزینه لحن: غمگین و شاعرانه"
   },
   "toneHopefulUplifting": {
-    "message": "امیدوارکننده/روحیه بخش",
-    "description": "گزینه لحن: امیدوارکننده/روحیه بخش"
+    "message": "امیدوار و روحیه بخش",
+    "description": "گزینه لحن: امیدوار و روحیه بخش"
   },
   "toneCynicalDarkHumor": {
-    "message": "کلبی مسلک/طنز سیاه",
-    "description": "گزینه لحن: کلبی مسلک/طنز سیاه"
+    "message": "بدبینانه و طنز تلخ",
+    "description": "گزینه لحن: بدبینانه و طنز تلخ"
   },
   "toneOverdramaticTheatrical": {
-    "message": "بیش از حد نمایشی/تئاتری",
-    "description": "گزینه لحن: بیش از حد نمایشی/تئاتری"
+    "message": "بیش از حد دراماتیک و تئاتری",
+    "description": "گزینه لحن: بیش از حد دراماتیک و تئاتری"
   },
   "toneMinimalistDry": {
-    "message": "مینیمالیست/خشک",
-    "description": "گزینه لحن: مینیمالیست/خشک"
+    "message": "مینیمالیست و خشک",
+    "description": "گزینه لحن: مینیمالیست و خشک"
   },
   "toneInspirationalMotivational": {
-    "message": "الهام بخش/انگیزشی",
-    "description": "گزینه لحن: الهام بخش/انگیزشی"
+    "message": "الهام‌بخش و انگیزشی",
+    "description": "گزینه لحن: الهام‌بخش و انگیزشی"
   },
   "errorRefreshExtension": {
     "message": "افزونه مجیک توییت نیاز به بازخوانی دارد. لطفاً صفحه را دوباره بارگذاری کنید.",
@@ -136,7 +136,7 @@
     "description": "عنوان پنل انتخاب لحن."
   },
   "loadingSuggestions": {
-    "message": "در حال ایجاد پیشنهادات",
+    "message": "در حال تولید پیشنهادات",
     "description": "متن نمایش داده شده هنگام بارگذاری پیشنهادات."
   },
   "errorPrefix": {
@@ -144,7 +144,7 @@
     "description": "پیشوند برای نمایش پیام خطا."
   },
   "tryAgainButton": {
-    "message": "دوباره تلاش کنید",
+    "message": "دوباره امتحان کنید",
     "description": "متن دکمه تلاش مجدد."
   },
   "errorMissingInfo": {
@@ -157,7 +157,7 @@
   },
   "errorFailedSuggestions": {
     "message": "تولید پیشنهادات ناموفق بود",
-    "description": "پیام خطای عمومی هنگامی که تولید پیشنهاد با شکست مواجه می شود."
+    "description": "پیام خطای عمومی هنگامی که تولید پیشنهاد با شکست مواجه می‌شود."
   },
   "errorNoSuggestionsAvailable": {
     "message": "هیچ پیشنهادی در دسترس نیست",
@@ -165,7 +165,7 @@
   },
   "defaultSuggestionTone": {
     "message": "پیشنهاد",
-    "description": "نام لحن پیش فرض استفاده شده اگر لحن خاصی برای پیشنهاد ارائه نشده باشد."
+    "description": "نام لحن پیش‌فرض استفاده شده اگر لحن خاصی برای پیشنهاد ارائه نشده باشد."
   },
   "copyButton": {
     "message": "کپی",
@@ -201,14 +201,56 @@
   },
   "languageToggleLabel": {
     "message": "تغییر زبان (انگلیسی/فارسی)",
-    "description": "برچسب دسترسی پذیری برای دکمه تغییر زبان."
+    "description": "برچسب دسترسی‌پذیری برای دکمه تغییر زبان."
+  },
+  "aiProviderHeading": {
+    "message": "انتخاب ارائه‌دهنده هوش مصنوعی",
+    "description": "عنوان بخش انتخاب ارائه‌دهنده هوش مصنوعی در پاپ‌آپ."
+  },
+  "aiProviderOpenAI": {
+    "message": "OpenAI",
+    "description": "برچسب برای گزینه رادیویی اوپن‌ای‌آی."
   },
   "aiProviderXAI": {
-    "message": "ایکس ای آی (گراک)",
-    "description": "Label for the XAI (Grok) AI provider option in Persian."
+    "message": "X AI",
+    "description": "برچسب برای گزینه ارائه‌دهنده هوش مصنوعی ایکس ای‌آی (گروک)."
   },
   "aiProviderGemini": {
-    "message": "جمنای",
-    "description": "Label for the Gemini AI provider option in Persian."
+    "message": "Gemini",
+    "description": "برچسب برای گزینه ارائه‌دهنده هوش مصنوعی جیمینای."
+  },
+  "loginWithTwitter": {
+    "message": "ورود با توییتر",
+    "description": "متن دکمه برای ورود به توییتر."
+  },
+  "loggedInMessage": {
+    "message": "شما با حساب توییتر وارد شده‌اید.",
+    "description": "پیامی که هنگام احراز هویت کاربر با توییتر نمایش داده می‌شود."
+  },
+  "logoutTwitter": {
+    "message": "خروج از توییتر",
+    "description": "متن دکمه برای خروج از توییتر."
+  },
+  "loggedInAsUser": {
+    "message": "با حساب @$USERNAME$ وارد شده‌اید",
+    "description": "پیامی که با نام کاربری توییتر کاربر نمایش داده می‌شود. $USERNAME$ یک جایگزین است.",
+    "placeholders": {
+      "username": {
+        "content": "$1",
+        "example": "TwitterUser"
+      }
+    }
+  },
+  "errorExtensionNeedsReload": {
+    "message": "مجیک توییت با مشکلی مواجه شده است. لطفاً افزونه را از تنظیمات آن یا این صفحه بازخوانی کنید.",
+    "description": "خطایی که هنگام از دست رفتن محتوای افزونه نمایش داده می‌شود و احتمالاً نیاز به بازخوانی دارد."
+  },
+  "checkingStatus": {
+    "message": "در حال بررسی وضعیت...",
+    "description": "متن دکمه هنگام بررسی وضعیت ورود."
+  },
+  "suggestionsRemainingText": {
+    "message": "پیشنهاد باقی‌مانده:",
+    "description": "متن نمایش داده شده در کنار تعداد پیشنهادات هوش مصنوعی باقی‌مانده برای کاربر."
   }
 }
