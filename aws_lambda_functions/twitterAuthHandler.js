@@ -8,7 +8,7 @@ const {
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
 
-const LAMBDA_CODE_VERSION = "v2.0.6_MAINTAIN_INPUT_LANGUAGE";
+const LAMBDA_CODE_VERSION = "v2.0.7_ADD_GEMINI_API";
 
 const region = process.env.AWS_REGION || "eu-west-2";
 const ddbClient = new DynamoDBClient({ region });
@@ -20,6 +20,7 @@ const TWITTER_API_KEY_SSM_NAME = "/my-extension/twitter/api-key";
 const TWITTER_API_SECRET_SSM_NAME = "/my-extension/twitter/api-key-secret";
 const OPENAI_API_KEY_SSM_NAME = "/my-extension/openai/api-key";
 const XAI_API_KEY_SSM_NAME = "/my-extension/xai/api-key";
+const GEMINI_API_KEY_SSM_NAME = "/my-extension/gemini/api-key";
 
 const MAX_GENERATION_REQUESTS = 150;
 
@@ -31,6 +32,7 @@ const XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions";
 let twitterAppClientCredentials = null;
 let openAiApiKey = null;
 let xAiApiKey = null;
+let geminiApiKey = null;
 
 // Function to get Twitter App Client ID and Secret from SSM
 async function getTwitterAppClientCredentials() {
@@ -120,12 +122,17 @@ async function getAiApiKey(aiProvider) {
   if (aiProvider === "xai" && xAiApiKey) {
     return xAiApiKey;
   }
+  if (aiProvider === "gemini" && geminiApiKey) {
+    return geminiApiKey;
+  }
 
   let ssmParamName;
   if (aiProvider === "openai") {
     ssmParamName = OPENAI_API_KEY_SSM_NAME;
   } else if (aiProvider === "xai") {
     ssmParamName = XAI_API_KEY_SSM_NAME;
+  } else if (aiProvider === "gemini") {
+    ssmParamName = GEMINI_API_KEY_SSM_NAME;
   } else {
     throw new Error(`Unsupported AI provider: ${aiProvider}`);
   }
@@ -160,6 +167,8 @@ async function getAiApiKey(aiProvider) {
       openAiApiKey = apiKey;
     } else if (aiProvider === "xai") {
       xAiApiKey = apiKey;
+    } else if (aiProvider === "gemini") {
+      geminiApiKey = apiKey;
     }
     console.log(`Successfully fetched and cached ${aiProvider} API key.`);
     return apiKey;
@@ -376,6 +385,29 @@ async function performAiSuggestionRequest(
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     };
+  } else if (aiProvider === "gemini") {
+    apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    model = "gemini-2.0-flash"; // Model name confirmed from user query
+    requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: systemMessage }, // System message first
+            { text: userMessage }, // Then user message
+          ],
+        },
+      ],
+      // Optional: Add generationConfig if needed for temperature, etc.
+      // generationConfig: {
+      //   temperature: 0.7,
+      //   topK: 1,
+      //   topP: 1,
+      //   maxOutputTokens: 2048,
+      // }
+    };
+    headers = {
+      "Content-Type": "application/json",
+    }; // API key is in the URL for Gemini
   } else {
     throw new Error("Invalid AI provider specified.");
   }
@@ -411,6 +443,22 @@ async function performAiSuggestionRequest(
       responseData.choices[0].message.content
     ) {
       return responseData.choices[0].message.content;
+    } else if (aiProvider === "gemini") {
+      if (
+        responseData.candidates &&
+        responseData.candidates.length > 0 &&
+        responseData.candidates[0].content &&
+        responseData.candidates[0].content.parts &&
+        responseData.candidates[0].content.parts.length > 0 &&
+        responseData.candidates[0].content.parts[0].text
+      ) {
+        return responseData.candidates[0].content.parts[0].text;
+      }
+      console.error(
+        `Invalid API response format from ${aiProvider}:`,
+        responseData
+      );
+      throw new Error(`Invalid API response format from ${aiProvider}`);
     } else {
       console.error(
         `Invalid API response format from ${aiProvider}:`,

@@ -208,12 +208,16 @@
     "description": "Heading for the AI Provider selection section in the popup."
   },
   "aiProviderOpenAI": {
-    "message": "OpenAI GPT",
+    "message": "OpenAI",
     "description": "Label for the OpenAI radio button option."
   },
   "aiProviderXAI": {
-    "message": "XAI Grok",
-    "description": "Label for the XAI radio button option."
+    "message": "X AI",
+    "description": "Label for the XAI (Grok) AI provider option."
+  },
+  "aiProviderGemini": {
+    "message": "Gemini",
+    "description": "Label for the Gemini AI provider option."
   },
   "loginWithTwitter": {
     "message": "Login with Twitter",

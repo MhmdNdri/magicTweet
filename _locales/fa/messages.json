@@ -202,5 +202,13 @@
   "languageToggleLabel": {
     "message": "تغییر زبان (انگلیسی/فارسی)",
     "description": "برچسب دسترسی پذیری برای دکمه تغییر زبان."
+  },
+  "aiProviderXAI": {
+    "message": "ایکس ای آی (گراک)",
+    "description": "Label for the XAI (Grok) AI provider option in Persian."
+  },
+  "aiProviderGemini": {
+    "message": "جمنای",
+    "description": "Label for the Gemini AI provider option in Persian."
   }
 }

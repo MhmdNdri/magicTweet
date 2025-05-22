@@ -283,7 +283,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Indicates that sendResponse will be called asynchronously.
   } else if (request.action === "generateSuggestions") {
     const toneMessageKey = request.tone; // This is the key like "styleSarcastic"
-    const aiProvider = request.aiProvider || "openai"; // Default to OpenAI if not specified
     const tweetText = request.text;
 
     if (!tweetText || !toneMessageKey) {
@@ -303,6 +302,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     (async () => {
       try {
+        // Fetch AI provider from storage
+        const data = await chrome.storage.local.get("magic-tweet-ai-provider");
+        const aiProvider = data["magic-tweet-ai-provider"] || "openai"; // Default to openai if not set
+        console.log("[Background.js] Using AI Provider:", aiProvider); // Log the provider being used
+
         const userAccessToken = await getValidAccessToken();
         if (!userAccessToken) {
           sendResponse({
