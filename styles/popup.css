@@ -497,52 +497,35 @@ h3::before {
 }
 
 #loginWithTwitterButton {
-  background-color: var(--primary-color); /* Use your theme's primary color */
-  color: #ffffff; /* White text for good contrast on blue */
+  background: var(--primary-color);
+  color: white;
   border: none;
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 600; /* Make text bold */
-  font-family: inherit; /* Inherit from body */
-  border-radius: 8px; /* Rounded corners */
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-  display: flex; /* For icon and text alignment if an icon is added later */
+  transition: all 0.2s ease;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px; /* Space between icon and text if an icon is added */
-  width: 100%; /* Make the button full width within its container */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+  gap: 8px;
+  width: 100%;
 }
 
 #loginWithTwitterButton:hover {
-  background-color: var(
-    --primary-hover
-  ); /* Use your theme's primary hover color */
-  transform: translateY(-1px); /* Slight lift on hover */
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
 }
 
-#loginWithTwitterButton:active {
-  transform: translateY(0px); /* Push down on click */
-  box-shadow: none; /* Remove shadow on click for a flatter look */
+#loginWithTwitterButton::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
 }
-
-#loginWithTwitterButton:disabled {
-  background-color: var(--disabled-color);
-  color: var(--secondary-text-color);
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-/* Optional: If you want to add a Twitter icon using an SVG later, you can add styles for it */
-/*
-#loginWithTwitterButton .twitter-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-}
-*/
 
 .logged-in-section {
   display: flex;
@@ -551,55 +534,148 @@ h3::before {
   padding: 16px 0;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
-  text-align: center;
 }
 
-#loggedInMessage {
-  font-size: 16px;
-  color: var(--text-color);
-  margin-bottom: 16px;
-}
-
-#logoutTwitterButton {
-  background-color: var(
-    --error-color
-  ); /* Or another appropriate color for logout */
-  color: #ffffff;
-  border: none;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  font-family: inherit;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  width: auto; /* Don't make it full width like login */
-}
-
-#logoutTwitterButton:hover {
-  background-color: #c71e52; /* Darker shade of error-color */
-}
-
-/* Suggestions Count Styling */
-#suggestionsCountMessage {
-  font-size: 14px; /* Slightly smaller than main loggedInMessage */
-  color: var(--secondary-text-color);
-  margin-top: -8px; /* Pull it a bit closer to the message above if loggedInMessage has margin-bottom: 16px */
-  margin-bottom: 16px; /* Space before the logout button */
-  padding: 8px 12px;
+/* Simple and clean profile card */
+.user-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
   background-color: var(--secondary-bg-color);
-  border-radius: 6px;
-  /* box-shadow: 0 1px 2px rgba(0,0,0,0.05); Removed for a flatter look, can be added back */
+  border-radius: 12px;
   border: 1px solid var(--border-color);
-  display: inline-block; /* To make padding and border wrap content nicely */
-  text-align: center;
+  transition: all 0.2s ease;
 }
 
-#suggestionsCountMessage strong {
+.user-profile-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.user-avatar-container {
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--primary-color);
+  object-fit: cover;
+}
+
+.user-avatar-fallback {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--primary-color);
+}
+
+.user-avatar-fallback .material-icons-round {
+  font-size: 28px;
+  color: white;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-display-name {
+  font-size: 16px;
   font-weight: 600;
-  color: var(
-    --primary-color
-  ); /* Make the number stand out with primary color */
+  color: var(--text-color);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-username {
+  font-size: 14px;
+  color: var(--secondary-text-color);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-username::before {
+  content: "@";
+  color: var(--primary-color);
+}
+
+.stats-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--primary-bg-color);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--primary-color);
+}
+
+.stats-badge .material-icons-round {
+  font-size: 14px;
+}
+
+.stats-value {
+  font-weight: 600;
+  margin: 0 2px;
+}
+
+.stats-label {
+  color: var(--secondary-text-color);
+}
+
+.logout-button {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background-color: var(--error-color);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(224, 37, 94, 0.2);
+}
+
+.logout-button:hover {
+  background-color: #d11a4f;
+  box-shadow: 0 4px 8px rgba(224, 37, 94, 0.3);
+  transform: translateY(-1px);
+}
+
+.logout-button .material-icons-round {
+  font-size: 16px;
+}
+
+/* Legacy cleanup */
+#loggedInMessage,
+#suggestionsCountMessage {
+  display: none !important;
 }
 
 /* Toast Notification Styles */
@@ -643,4 +719,47 @@ h3::before {
   /* This area can be kept for non-toast critical errors or removed if toast is sufficient */
   /* For now, let's ensure it doesn't overlap if toasts are used for primary feedback */
   margin-bottom: 10px;
+}
+
+/* Responsive Design for Profile Card */
+@media (max-width: 380px) {
+  .user-profile-card {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .user-info {
+    order: 2;
+  }
+
+  .logout-button {
+    order: 3;
+  }
+}
+
+/* RTL Support for Profile Card */
+[dir="rtl"] .user-profile-card {
+  direction: rtl;
+}
+
+[dir="rtl"] .user-info {
+  text-align: right;
+}
+
+/* Dark theme enhancements for profile card */
+[data-theme="dark"] .user-profile-card {
+  background-color: var(--secondary-bg-color);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .logout-button:hover {
+  background-color: var(--error-color);
+  color: white;
+  border-color: var(--error-color);
+}
+
+[data-theme="dark"] .logout-button {
+  border-color: var(--border-color);
+  color: white;
 }

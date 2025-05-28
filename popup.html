@@ -29,11 +29,29 @@
         <button id="loginWithTwitterButton" data-i18n="loginWithTwitter">__MSG_loginWithTwitter__</button>
       </div>
       <div id="loggedInSection" class="logged-in-section" style="display: none;">
-        <p id="loggedInMessage" data-i18n="loggedInAsUser">__MSG_loggedInAsUser__</p>
-        <p id="suggestionsCountMessage" style="display: none;">
-          <span data-i18n="suggestionsRemainingText">__MSG_suggestionsRemainingText__</span> <strong id="suggestionsRemainingCount">--</strong>
-        </p>
-        <button id="logoutTwitterButton" data-i18n="logoutTwitter">__MSG_logoutTwitter__</button>
+        <div class="user-profile-card">
+          <div class="user-avatar-container">
+            <img id="userProfileImage" class="user-avatar" src="" alt="User Profile" style="display: none;">
+            <div id="userAvatarFallback" class="user-avatar-fallback" style="display: none;">
+              <span class="material-icons-round">account_circle</span>
+            </div>
+          </div>
+          <div class="user-info">
+            <div class="user-name-row">
+              <h3 id="userDisplayName" class="user-display-name"></h3>
+              <p id="userUsername" class="user-username"></p>
+            </div>
+            <div id="suggestionsCountBadge" class="stats-badge" style="display: none;">
+              <span class="material-icons-round">auto_fix_high</span>
+              <span id="suggestionsRemainingCount" class="stats-value">--</span>
+              <span class="stats-label" data-i18n="suggestionsRemaining">suggestions left</span>
+            </div>
+          </div>
+          <button id="logoutTwitterButton" class="logout-button" data-i18n="logoutTwitter">
+            <span class="material-icons-round">logout</span>
+            <span>Logout</span>
+          </button>
+        </div>
       </div>
 
       <div class="welcome-section">

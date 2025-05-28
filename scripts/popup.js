@@ -63,19 +63,61 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateUI(isLoggedIn, userInfo) {
     if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors
 
+    // Get new profile card elements
+    const userProfileImage = document.getElementById("userProfileImage");
+    const userAvatarFallback = document.getElementById("userAvatarFallback");
+    const userDisplayName = document.getElementById("userDisplayName");
+    const userUsername = document.getElementById("userUsername");
+    const suggestionsCountBadge = document.getElementById(
+      "suggestionsCountBadge"
+    );
+    const suggestionsRemainingCount = document.getElementById(
+      "suggestionsRemainingCount"
+    );
+
     if (isLoggedIn && userInfo && userInfo.username) {
       authSection?.style.setProperty("display", "none", "important");
       loggedInSection?.style.setProperty("display", "flex");
-      const username = userInfo.username;
-      const message = chrome.i18n.getMessage("loggedInAsUser", [username]);
-      if (loggedInMessageElement) {
-        loggedInMessageElement.textContent = message;
-        loggedInMessageElement.removeAttribute("data-i18n");
-      }
-      // Update suggestions count
+
+      // Handle profile image
       if (
-        suggestionsCountMessageElement &&
-        suggestionsRemainingCountElement &&
+        userInfo.profile_image_url &&
+        userProfileImage &&
+        userAvatarFallback
+      ) {
+        userProfileImage.src = userInfo.profile_image_url;
+        userProfileImage.style.display = "block";
+        userAvatarFallback.style.display = "none";
+
+        // Handle image load error
+        userProfileImage.onerror = function () {
+          console.log(
+            "[popup.js] Failed to load profile image, showing fallback"
+          );
+          userProfileImage.style.display = "none";
+          userAvatarFallback.style.display = "flex";
+        };
+      } else if (userAvatarFallback) {
+        // No profile image URL, show fallback
+        if (userProfileImage) userProfileImage.style.display = "none";
+        userAvatarFallback.style.display = "flex";
+      }
+
+      // Update user display name
+      if (userDisplayName) {
+        userDisplayName.textContent =
+          userInfo.name || userInfo.username || "User";
+      }
+
+      // Update username
+      if (userUsername) {
+        userUsername.textContent = userInfo.username || "";
+      }
+
+      // Update suggestions count badge
+      if (
+        suggestionsCountBadge &&
+        suggestionsRemainingCount &&
         userInfo.number_requests !== undefined
       ) {
         const isPaid = userInfo.is_paid || false;
@@ -84,7 +126,6 @@ document.addEventListener("DOMContentLoaded", () => {
         let userBudgetAsNumber;
         if (userInfo.budget !== undefined) {
           userBudgetAsNumber = Number(userInfo.budget);
-          // If budget from userInfo is not a valid number, default appropriately
           if (isNaN(userBudgetAsNumber)) {
             console.warn(
               `[popup.js] userInfo.budget ('${userInfo.budget}') is not a valid number.`
@@ -92,40 +133,67 @@ document.addEventListener("DOMContentLoaded", () => {
             userBudgetAsNumber = isPaid ? 0 : MAX_FREE_REQUESTS;
           }
         } else {
-          // If budget is undefined in userInfo, default appropriately
           userBudgetAsNumber = isPaid ? 0 : MAX_FREE_REQUESTS;
         }
 
         const effectiveLimit = isPaid ? userBudgetAsNumber : MAX_FREE_REQUESTS;
         const remaining = Math.max(0, effectiveLimit - currentRequests);
 
-        suggestionsRemainingCountElement.textContent = remaining;
-        suggestionsCountMessageElement.style.display = "block"; // Make sure it's block, not inline
-      } else if (suggestionsCountMessageElement) {
-        suggestionsCountMessageElement.style.display = "none";
+        suggestionsRemainingCount.textContent = remaining;
+        suggestionsCountBadge.style.display = "flex";
+      } else if (suggestionsCountBadge) {
+        suggestionsCountBadge.style.display = "none";
         console.log(
-          "[popup.js] Hiding suggestions count message because user info or elements are incomplete."
+          "[popup.js] Hiding suggestions count badge because user info is incomplete."
         );
+      }
+
+      // Legacy elements handling for backward compatibility
+      if (loggedInMessageElement) {
+        const username = userInfo.username;
+        const message = chrome.i18n.getMessage("loggedInAsUser", [username]);
+        loggedInMessageElement.textContent = message;
+        loggedInMessageElement.removeAttribute("data-i18n");
+      }
+      if (suggestionsCountMessageElement) {
+        suggestionsCountMessageElement.style.display = "none";
       }
     } else if (isLoggedIn) {
       // Logged in but no user info (fallback)
       console.log(
         "[popup.js] Logged in, but no userInfo.username. Using fallback message."
-      ); // Debugging line
+      );
       authSection?.style.setProperty("display", "none", "important");
       loggedInSection?.style.setProperty("display", "flex");
+
+      // Show fallback avatar
+      if (userProfileImage) userProfileImage.style.display = "none";
+      if (userAvatarFallback) userAvatarFallback.style.display = "flex";
+
+      // Show fallback user info
+      if (userDisplayName) userDisplayName.textContent = "User";
+      if (userUsername) userUsername.textContent = "";
+      if (suggestionsCountBadge) suggestionsCountBadge.style.display = "none";
+
+      // Legacy elements
       if (loggedInMessageElement) {
         loggedInMessageElement.textContent =
           chrome.i18n.getMessage("loggedInMessage") || "Logged In";
         loggedInMessageElement.removeAttribute("data-i18n");
       }
       if (suggestionsCountMessageElement)
-        suggestionsCountMessageElement.style.display = "none"; // Hide if not fully logged in with info
+        suggestionsCountMessageElement.style.display = "none";
     } else {
+      // Not logged in
       authSection?.style.setProperty("display", "flex");
       loggedInSection?.style.setProperty("display", "none", "important");
+
+      // Hide all profile elements
+      if (userProfileImage) userProfileImage.style.display = "none";
+      if (userAvatarFallback) userAvatarFallback.style.display = "none";
+      if (suggestionsCountBadge) suggestionsCountBadge.style.display = "none";
       if (suggestionsCountMessageElement)
-        suggestionsCountMessageElement.style.display = "none"; // Hide on logout
+        suggestionsCountMessageElement.style.display = "none";
     }
   }
 
