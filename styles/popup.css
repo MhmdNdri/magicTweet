@@ -233,8 +233,8 @@ h3::before {
 
 .tone-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
   margin-top: 16px;
 }
 
@@ -243,8 +243,8 @@ h3::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 16px 8px;
+  gap: 6px;
+  padding: 12px 6px;
   background-color: var(--background-color);
   border-radius: 12px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
@@ -252,6 +252,7 @@ h3::before {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  min-height: 80px;
 }
 
 .tone-item::after {
@@ -278,17 +279,18 @@ h3::before {
 
 .tone-item .material-icons {
   color: var(--primary-color);
-  font-size: 26px;
-  padding: 8px;
+  font-size: 24px;
+  padding: 6px;
   background-color: var(--primary-bg-color);
   border-radius: 50%;
 }
 
 .tone-item span:not(.material-icons) {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-align: center;
   color: var(--text-color);
+  line-height: 1.2;
 }
 
 .header-actions {
@@ -762,4 +764,74 @@ h3::before {
 [data-theme="dark"] .logout-button {
   border-color: var(--border-color);
   color: white;
+}
+
+/* Roast suggestions container */
+.roast-suggestions {
+  background: linear-gradient(135deg, #fff5f5, #ffe5e5);
+  border: 1px solid #ffcccc;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+[data-theme="dark"] .roast-suggestions {
+  background: linear-gradient(135deg, #2d1a1a, #1a0f0f);
+  border-color: #4d2a2a;
+}
+
+.roast-suggestions h4 {
+  color: #ff4d4d;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roast-suggestions h4 .material-icons-round {
+  font-size: 20px;
+}
+
+.roast-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roast-item {
+  background: white;
+  border: 1px solid #ffcccc;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .roast-item {
+  background: #2d1a1a;
+  border-color: #4d2a2a;
+  color: #fff;
+}
+
+.roast-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(255, 0, 0, 0.1);
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 380px) {
+  .tone-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (max-width: 320px) {
+  .tone-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
 }

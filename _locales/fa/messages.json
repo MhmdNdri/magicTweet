@@ -87,6 +87,10 @@
     "message": "تئاتری",
     "description": "نام برای سبک تئاتری."
   },
+  "styleRoast": {
+    "message": "مسخره کردن",
+    "description": "Style option for roasting tweets"
+  },
   "tonePlayfulFunny": {
     "message": "شوخ و بامزه",
     "description": "گزینه لحن: بازیگوش و بامزه"
@@ -256,5 +260,13 @@
   "suggestionsRemaining": {
     "message": "پیشنهادات باقی‌مانده",
     "description": "برچسب آمار پیشنهادات باقی‌مانده در کارت پروفایل کاربر."
+  },
+  "roastSuggestions": {
+    "message": "پیشنهادات مسخره کردن",
+    "description": "Title for roast suggestions section"
+  },
+  "roastDescription": {
+    "message": "۵ مسخره کردن خلاقانه از توییت شما",
+    "description": "Description for roast feature"
   }
 }

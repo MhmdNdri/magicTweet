@@ -41,6 +41,7 @@ const API_TONE_MESSAGE_KEYS = {
   DRAMATIC: "toneOverdramaticTheatrical",
   MINIMALIST: "toneMinimalistDry",
   INSPIRATIONAL: "toneInspirationalMotivational",
+  ROAST: "styleRoast",
 };
 
 const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
@@ -415,6 +416,7 @@ function populateToneOptions() {
       API_TONE_MESSAGE_KEYS.INSPIRATIONAL,
       "Inspirational/Motivational"
     ),
+    ROAST: getLocalizedString(API_TONE_MESSAGE_KEYS.ROAST, "Roast"),
   };
 }
 

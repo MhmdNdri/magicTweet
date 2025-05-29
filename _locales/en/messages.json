@@ -87,6 +87,10 @@
     "message": "Theatrical",
     "description": "Name for the Theatrical style."
   },
+  "styleRoast": {
+    "message": "Roast",
+    "description": "Style option for roasting tweets"
+  },
   "tonePlayfulFunny": {
     "message": "Playful & Funny",
     "description": "Tone option: Playful & Funny"
@@ -256,5 +260,13 @@
   "suggestionsRemaining": {
     "message": "Suggestions Remaining",
     "description": "Label for the suggestions remaining statistics in the user profile card."
+  },
+  "roastSuggestions": {
+    "message": "Roast Suggestions",
+    "description": "Title for roast suggestions section"
+  },
+  "roastDescription": {
+    "message": "Get 5 creative roasts of your tweet",
+    "description": "Description for roast feature"
   }
 }
