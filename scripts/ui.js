@@ -287,13 +287,20 @@ function createToneSelectionPanel() {
       toneButtonsHtml += "</div>";
       contentContainer.innerHTML = toneButtonsHtml;
 
+      // Remove default padding from content container for proper grid fit
+      contentContainer.style.padding = "12px";
+      contentContainer.style.paddingRight = "12px";
+
       // Add CSS styles
       const style = document.createElement("style");
       style.textContent = `
         .magic-tweet-tone-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
+          width: 100%;
           gap: 12px;
+          padding: 0;
+          margin: 0;
         }
         
         .magic-tweet-tone-item {
@@ -302,94 +309,130 @@ function createToneSelectionPanel() {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 16px 12px;
+          padding: 12px 8px;
           background: var(--background-color);
           border: 1px solid var(--border-color);
-          border-radius: 8px;
+          border-radius: 12px;
           cursor: pointer;
-          transition: all 0.2s ease;
-          min-height: 75px;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          min-height: 70px;
           user-select: none;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .magic-tweet-tone-item::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: var(--primary-color);
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          border-radius: 12px;
         }
         
         .magic-tweet-tone-item:hover {
-          background: var(--hover-bg-color);
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.08);
           border-color: var(--primary-color);
+        }
+        
+        .magic-tweet-tone-item:hover::before {
+          opacity: 0.04;
+        }
+        
+        .magic-tweet-tone-item:active {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), 0 2px 5px rgba(0, 0, 0, 0.06);
+          transition: all 0.1s ease;
         }
         
         .magic-tweet-tone-icon {
-          width: 40px;
-          height: 40px;
+          width: 36px;
+          height: 36px;
           background: var(--background-color);
-          border: 2px solid var(--border-color);
+          border: 1px solid var(--border-color);
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: all 0.2s ease;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          z-index: 1;
         }
         
         .magic-tweet-tone-item:hover .magic-tweet-tone-icon {
-          transform: scale(1.05);
+          transform: scale(1.08);
           border-color: var(--primary-color);
-          background: rgba(29, 161, 242, 0.1);
+          box-shadow: 0 4px 12px rgba(29, 161, 242, 0.2), 0 2px 4px rgba(29, 161, 242, 0.1);
         }
         
         .magic-tweet-tone-icon svg {
-          width: 20px;
-          height: 20px;
+          width: 18px;
+          height: 18px;
         }
         
         .magic-tweet-tone-label {
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 500;
           text-align: center;
           color: var(--text-color);
           line-height: 1.2;
+          position: relative;
+          z-index: 1;
+          opacity: 0.8;
+          transition: all 0.2s ease;
         }
         
         .magic-tweet-tone-item:hover .magic-tweet-tone-label {
           color: var(--primary-color);
           font-weight: 600;
+          opacity: 1;
         }
         
         /* Dark theme support */
         [data-theme="dark"] .magic-tweet-tone-item {
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
         }
         
         [data-theme="dark"] .magic-tweet-tone-item:hover {
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.25);
+        }
+        
+        [data-theme="dark"] .magic-tweet-tone-item:active {
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), 0 2px 5px rgba(0, 0, 0, 0.2);
         }
         
         /* Responsive design */
         @media (max-width: 400px) {
           .magic-tweet-tone-grid {
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            padding: 12px;
+            gap: 8px;
+            padding: 0;
           }
           
           .magic-tweet-tone-item {
-            padding: 14px 10px;
-            min-height: 65px;
+            padding: 10px 6px;
+            min-height: 60px;
+            border-radius: 10px;
           }
           
           .magic-tweet-tone-icon {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
           }
           
           .magic-tweet-tone-icon svg {
-            width: 18px;
-            height: 18px;
+            width: 16px;
+            height: 16px;
           }
           
           .magic-tweet-tone-label {
-            font-size: 11px;
+            font-size: 10px;
           }
         }
       `;
