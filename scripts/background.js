@@ -60,6 +60,112 @@ async function generateCodeChallenge(verifier) {
 
 let codeVerifierForOAuth;
 
+// === CLIENT-SIDE RATE LIMITING ===
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
+let consecutiveErrors = 0;
+let rateLimitResetTime = null;
+
+function calculateBackoffDelay(attempt) {
+  const baseDelay = 1000; // 1 second
+  const maxDelay = 30000; // 30 seconds max
+  const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+  const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
+  return exponentialDelay + jitter;
+}
+
+async function waitForRateLimit() {
+  // Check global rate limit
+  if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
+    const waitTime = rateLimitResetTime - Date.now() + 1000;
+    console.log(`Client rate limit active. Waiting ${waitTime}ms`);
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
+  }
+
+  // Ensure minimum interval between requests
+  const timeSinceLastRequest = Date.now() - lastRequestTime;
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
+  }
+
+  lastRequestTime = Date.now();
+}
+
+async function makeRateLimitedRequest(url, options, maxRetries = 3) {
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      await waitForRateLimit();
+
+      const response = await fetch(url, options);
+
+      if (response.status === 429) {
+        consecutiveErrors++;
+
+        // Try to get retry-after header
+        const retryAfter = response.headers.get("retry-after");
+        if (retryAfter) {
+          const waitTime = parseInt(retryAfter) * 1000;
+          rateLimitResetTime = Date.now() + waitTime;
+          console.log(`Rate limit detected. Retry after: ${waitTime}ms`);
+        } else {
+          // Use exponential backoff
+          const backoffDelay = calculateBackoffDelay(consecutiveErrors);
+          rateLimitResetTime = Date.now() + backoffDelay;
+          console.log(
+            `Rate limit detected. Backing off for: ${backoffDelay}ms`
+          );
+        }
+
+        if (attempt < maxRetries - 1) {
+          attempt++;
+          continue;
+        } else {
+          throw new Error(`Rate limit exceeded. Please try again later.`);
+        }
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `Request failed with status ${response.status}`
+        );
+      }
+
+      // Reset on success
+      consecutiveErrors = 0;
+      rateLimitResetTime = null;
+
+      return response;
+    } catch (error) {
+      if (
+        error.message.includes("Rate limit") ||
+        error.message.includes("429")
+      ) {
+        consecutiveErrors++;
+
+        if (attempt < maxRetries - 1) {
+          const backoffDelay = calculateBackoffDelay(attempt);
+          console.log(
+            `Retrying after ${backoffDelay}ms due to rate limit. Attempt ${
+              attempt + 1
+            }/${maxRetries}`
+          );
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+          attempt++;
+          continue;
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error("Max retries exceeded");
+}
+
 // Handle messages from popup and content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "TWITTER_LOGIN") {
@@ -171,7 +277,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         let backendResponseData;
         try {
-          const backendResponse = await fetch(backendApiUrl, {
+          const backendResponse = await makeRateLimitedRequest(backendApiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ accessToken: access_token }), // Lambda defaults to 'login' action
@@ -320,7 +426,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         const backendApiUrl =
           "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
-        const backendResponse = await fetch(backendApiUrl, {
+
+        // Use rate-limited request to handle 429 errors
+        const backendResponse = await makeRateLimitedRequest(backendApiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -368,15 +476,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               console.log(
                 "Background: Attempting to refresh user info from backend after suggestion generation."
               );
-              const refreshResponse = await fetch(backendApiUrl, {
-                // backendApiUrl is already defined in this scope
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  action: "login", // Re-use login action to get full user profile
-                  accessToken: userAccessTokenForRefresh,
-                }),
-              });
+              const refreshResponse = await makeRateLimitedRequest(
+                backendApiUrl,
+                {
+                  // backendApiUrl is already defined in this scope
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    action: "login", // Re-use login action to get full user profile
+                    accessToken: userAccessTokenForRefresh,
+                  }),
+                }
+              );
               const refreshData = await refreshResponse.json();
               if (refreshResponse.ok && refreshData.userData) {
                 // Perform the same mapping as in the initial login flow
@@ -426,9 +537,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           "Background: Error in generateSuggestions handler:",
           error
         );
+
+        let errorMessage =
+          error.message || chrome.i18n.getMessage("errorFailedSuggestions");
+
+        // Provide specific error messages for rate limiting
+        if (
+          error.message.includes("Rate limit") ||
+          error.message.includes("429")
+        ) {
+          if (error.message.includes("Twitter")) {
+            errorMessage =
+              chrome.i18n.getMessage("errorTwitterRateLimit") ||
+              "Twitter API rate limit reached. Please try again in a few minutes.";
+          } else {
+            errorMessage =
+              chrome.i18n.getMessage("errorRateLimitExceeded") ||
+              "Rate limit exceeded. Please wait a moment and try again.";
+          }
+        } else if (error.message.includes("Too many requests")) {
+          errorMessage =
+            chrome.i18n.getMessage("errorTooManyRequests") ||
+            "Too many requests. Please wait before trying again.";
+        } else if (error.message.includes("Max retries exceeded")) {
+          errorMessage =
+            chrome.i18n.getMessage("errorRetryLater") ||
+            "Service temporarily unavailable. Please retry in a few moments.";
+        }
+
         sendResponse({
-          error:
-            error.message || chrome.i18n.getMessage("errorFailedSuggestions"),
+          error: errorMessage,
           details: error.toString(),
         });
       }

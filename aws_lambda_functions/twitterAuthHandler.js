@@ -8,7 +8,7 @@ const {
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
 
-const LAMBDA_CODE_VERSION = "v2.0.8_ADD_ROAST_OPTION";
+const LAMBDA_CODE_VERSION = "v2.0.10_RATE_LIMIT_FIX_REVIEWED";
 
 const region = process.env.AWS_REGION || "eu-west-2";
 const ddbClient = new DynamoDBClient({ region });
@@ -28,6 +28,172 @@ const TWITTER_TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
 const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
 const XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions";
+
+// === RATE LIMITING VARIABLES ===
+// Cache for authenticated users to avoid repeated Twitter API calls
+const userAuthCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+const REQUEST_QUEUE = [];
+const CONCURRENT_LIMIT = 3; // Max concurrent Twitter API requests
+let activeRequests = 0;
+
+// Rate limiting state
+let rateLimitResetTime = null;
+let rateLimitRemaining = null;
+let consecutiveErrors = 0;
+
+// === EXPONENTIAL BACKOFF UTILITY ===
+function calculateBackoffDelay(attempt) {
+  // Base delay: 1 second, exponential backoff with jitter
+  const baseDelay = 1000;
+  const maxDelay = 32000; // 32 seconds max
+  const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+  // Add jitter (±25%)
+  const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
+  return exponentialDelay + jitter;
+}
+
+// === RATE LIMIT AWARE DELAY ===
+async function waitForRateLimit() {
+  if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
+    const waitTime = rateLimitResetTime - Date.now() + 1000; // Add 1 second buffer
+    console.log(
+      `Rate limit active. Waiting ${waitTime}ms before next request.`
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
+  }
+}
+
+// === REQUEST QUEUE PROCESSOR ===
+let isProcessingQueue = false;
+
+async function processRequestQueue() {
+  if (isProcessingQueue) return; // Prevent concurrent processing
+  isProcessingQueue = true;
+
+  try {
+    while (REQUEST_QUEUE.length > 0 && activeRequests < CONCURRENT_LIMIT) {
+      const { resolve, reject, fn, args } = REQUEST_QUEUE.shift();
+      activeRequests++;
+
+      try {
+        const result = await fn(...args);
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      } finally {
+        activeRequests--;
+        // Small delay to prevent overwhelming
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+
+    // If there are still items in queue, schedule next processing
+    if (REQUEST_QUEUE.length > 0 && activeRequests < CONCURRENT_LIMIT) {
+      setTimeout(processRequestQueue, 100);
+    }
+  }
+}
+
+// === QUEUED TWITTER API CALL ===
+function queueTwitterApiCall(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    REQUEST_QUEUE.push({ resolve, reject, fn, args });
+    processRequestQueue();
+  });
+}
+
+// === CACHED USER AUTHENTICATION ===
+function getCachedUserAuth(accessToken) {
+  const tokenHash = accessToken.substring(0, 20); // Use partial token as key
+  const cached = userAuthCache.get(tokenHash);
+
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log("Using cached Twitter user authentication");
+    return cached.userDetails;
+  }
+
+  // Clean up expired entry if found
+  if (cached) {
+    userAuthCache.delete(tokenHash);
+  }
+
+  return null;
+}
+
+function setCachedUserAuth(accessToken, userDetails) {
+  const tokenHash = accessToken.substring(0, 20);
+  userAuthCache.set(tokenHash, {
+    userDetails,
+    timestamp: Date.now(),
+  });
+
+  // Clean up old cache entries (keep cache size manageable)
+  if (userAuthCache.size > 100) {
+    const oldestKey = userAuthCache.keys().next().value;
+    userAuthCache.delete(oldestKey);
+  }
+}
+
+// === ENHANCED ERROR HANDLER ===
+function handleTwitterApiError(error, context = "Twitter API call") {
+  console.error(`${context} error:`, error);
+
+  // Extract status code from different error types
+  let statusCode = null;
+  if (error.code) {
+    statusCode = error.code;
+  } else if (error.status) {
+    statusCode = error.status;
+  } else if (error.response && error.response.status) {
+    statusCode = error.response.status;
+  }
+
+  // Handle rate limiting
+  if (statusCode === 429) {
+    consecutiveErrors++;
+
+    // Try to extract rate limit reset time from headers
+    if (error.response && error.response.headers) {
+      const resetTime = error.response.headers["x-rate-limit-reset"];
+      if (resetTime) {
+        rateLimitResetTime = parseInt(resetTime) * 1000; // Convert to milliseconds
+        console.log(
+          `Rate limit reset time set to: ${new Date(rateLimitResetTime)}`
+        );
+      }
+
+      const remaining = error.response.headers["x-rate-limit-remaining"];
+      if (remaining !== undefined) {
+        rateLimitRemaining = parseInt(remaining);
+        console.log(`Rate limit remaining: ${rateLimitRemaining}`);
+      }
+    }
+
+    // If no reset time in headers, estimate based on consecutive errors
+    if (!rateLimitResetTime) {
+      const backoffDelay = calculateBackoffDelay(consecutiveErrors);
+      rateLimitResetTime = Date.now() + backoffDelay;
+      console.log(
+        `Estimated rate limit reset time: ${new Date(
+          rateLimitResetTime
+        )} (${backoffDelay}ms)`
+      );
+    }
+  } else {
+    // Reset consecutive errors on non-rate-limit errors
+    consecutiveErrors = 0;
+  }
+
+  return {
+    statusCode: statusCode || 500,
+    isRateLimit: statusCode === 429,
+    shouldRetry: statusCode === 429 || statusCode >= 500,
+    waitTime: rateLimitResetTime ? rateLimitResetTime - Date.now() : 0,
+  };
+}
 
 let twitterAppClientCredentials = null;
 let openAiApiKey = null;
@@ -185,36 +351,98 @@ async function getTwitterUserDetails(userAccessToken) {
     }(...)`
   );
 
-  try {
-    const userClient = new TwitterApi(userAccessToken);
-    console.log("TwitterApi client initialized with user access token.");
-
-    const { data: verifiedUser } = await userClient.v2.me({
-      "user.fields": ["id", "username", "name", "profile_image_url"],
-    });
-    console.log("Successfully fetched user from Twitter:", verifiedUser);
-
-    if (!verifiedUser || !verifiedUser.id) {
-      console.error(
-        "Twitter API returned user data but it was invalid or missing ID:",
-        verifiedUser
-      );
-      throw new Error("Invalid user data received from Twitter API.");
-    }
-
-    return {
-      id_str: verifiedUser.id,
-      screen_name: verifiedUser.username,
-      name: verifiedUser.name,
-      profile_image_url_https: verifiedUser.profile_image_url,
-    };
-  } catch (error) {
-    console.error(
-      "Error in getTwitterUserDetails calling Twitter API (v2.me):",
-      JSON.stringify(error, Object.getOwnPropertyNames(error), 2)
-    );
-    throw error;
+  // Check cache first
+  const cachedAuth = getCachedUserAuth(userAccessToken);
+  if (cachedAuth) {
+    return cachedAuth;
   }
+
+  // Check if we're currently rate limited
+  await waitForRateLimit();
+
+  const maxRetries = 3;
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      // Use queued API call to limit concurrency
+      const userDetails = await queueTwitterApiCall(async () => {
+        const userClient = new TwitterApi(userAccessToken);
+        console.log("TwitterApi client initialized with user access token.");
+
+        const { data: verifiedUser } = await userClient.v2.me({
+          "user.fields": ["id", "username", "name", "profile_image_url"],
+        });
+
+        console.log("Successfully fetched user from Twitter:", verifiedUser);
+
+        if (!verifiedUser || !verifiedUser.id) {
+          console.error(
+            "Twitter API returned user data but it was invalid or missing ID:",
+            verifiedUser
+          );
+          throw new Error("Invalid user data received from Twitter API.");
+        }
+
+        // Convert new API format to legacy format for compatibility
+        const legacyFormatUser = {
+          id_str: verifiedUser.id,
+          screen_name: verifiedUser.username,
+          name: verifiedUser.name,
+          profile_image_url_https: verifiedUser.profile_image_url || "",
+        };
+
+        return legacyFormatUser;
+      });
+
+      // Cache successful authentication
+      setCachedUserAuth(userAccessToken, userDetails);
+
+      // Reset consecutive errors on success
+      consecutiveErrors = 0;
+
+      return userDetails;
+    } catch (error) {
+      const errorInfo = handleTwitterApiError(
+        error,
+        "Twitter user authentication"
+      );
+
+      if (errorInfo.isRateLimit) {
+        console.log(
+          `Rate limit hit during authentication. Attempt ${
+            attempt + 1
+          }/${maxRetries}`
+        );
+
+        if (attempt < maxRetries - 1) {
+          // Wait for rate limit to reset
+          await waitForRateLimit();
+          attempt++;
+          continue;
+        } else {
+          // Final attempt failed due to rate limit
+          throw new Error(`Request failed with code 429`);
+        }
+      } else if (errorInfo.shouldRetry && attempt < maxRetries - 1) {
+        // Retry for server errors
+        const backoffDelay = calculateBackoffDelay(attempt);
+        console.log(
+          `Retrying authentication after ${backoffDelay}ms delay. Attempt ${
+            attempt + 1
+          }/${maxRetries}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        attempt++;
+        continue;
+      } else {
+        // Non-retryable error or max retries reached
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Max retries exceeded for Twitter authentication");
 }
 
 async function revokeTwitterToken(tokenToRevoke) {

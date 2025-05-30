@@ -167,6 +167,22 @@
     "message": "No suggestions available",
     "description": "Error message displayed in the panel when no suggestions can be shown."
   },
+  "errorRateLimitExceeded": {
+    "message": "Rate limit exceeded. Please wait a moment and try again.",
+    "description": "Error message when the API rate limit is exceeded."
+  },
+  "errorTwitterRateLimit": {
+    "message": "Twitter API rate limit reached. Please try again in a few minutes.",
+    "description": "Error message specifically for Twitter API rate limiting."
+  },
+  "errorTooManyRequests": {
+    "message": "Too many requests. Please wait before trying again.",
+    "description": "Error message for general rate limiting."
+  },
+  "errorRetryLater": {
+    "message": "Service temporarily unavailable. Please retry in a few moments.",
+    "description": "Error message when service needs retry later."
+  },
   "defaultSuggestionTone": {
     "message": "Suggestion",
     "description": "Default tone name used if a specific tone isn't provided for a suggestion."
