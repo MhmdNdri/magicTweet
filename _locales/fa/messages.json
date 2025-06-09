@@ -268,5 +268,13 @@
   "roastDescription": {
     "message": "۵ مسخره کردن خلاقانه از توییت شما",
     "description": "Description for roast feature"
+  },
+  "authenticating": {
+    "message": "در حال احراز هویت...",
+    "description": "Message shown during authentication process"
+  },
+  "loadingUserInfo": {
+    "message": "در حال بارگیری اطلاعات کاربر...",
+    "description": "Message shown when loading user profile information"
   }
 }

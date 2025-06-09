@@ -277,6 +277,14 @@
     "message": "Suggestions Remaining",
     "description": "Label for the suggestions remaining statistics in the user profile card."
   },
+  "authenticating": {
+    "message": "Authenticating...",
+    "description": "Message shown during authentication process"
+  },
+  "loadingUserInfo": {
+    "message": "Loading user information...",
+    "description": "Message shown when loading user profile information"
+  },
   "roastSuggestions": {
     "message": "Roast Suggestions",
     "description": "Title for roast suggestions section"

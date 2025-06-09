@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginButton = document.getElementById("loginWithTwitterButton");
   const authSection = loginButton?.closest(".auth-section"); // Get the parent auth section
   const loggedInSection = document.getElementById("loggedInSection");
+  const loadingSection = document.getElementById("loadingSection");
+  const loadingMessage = document.getElementById("loadingMessage");
   const logoutButton = document.getElementById("logoutTwitterButton");
   const loggedInMessageElement = document.getElementById("loggedInMessage");
   const suggestionsCountMessageElement = document.getElementById(
@@ -47,18 +49,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 3000); // Show toast for 3 seconds
   }
 
-  // Store original button texts for restoring them after an action
-  const originalLoginButtonText = loginButton
-    ? chrome.i18n.getMessage("loginWithTwitter") || "Login with Twitter"
-    : "";
-  const originalLogoutButtonText = logoutButton
-    ? chrome.i18n.getMessage("logoutTwitter") || "Logout"
-    : "";
-  // For a production extension, add a "loggingOut" message to your locales
-  const loggingOutButtonText =
-    chrome.i18n.getMessage("loggingOut") || "Logging out...";
-  const checkingStatusButtonText =
-    chrome.i18n.getMessage("checkingStatus") || "Checking status..."; // New loading text
+  // No longer need original button texts since we're using state management
+
+  // Function to show different UI states
+  function showUIState(state, message = null) {
+    // Hide all sections first
+    if (authSection) authSection.style.display = "none";
+    if (loggedInSection) loggedInSection.style.display = "none";
+    if (loadingSection) loadingSection.style.display = "none";
+
+    switch (state) {
+      case "loading":
+        if (loadingSection) {
+          loadingSection.style.display = "flex";
+          if (loadingMessage && message) {
+            loadingMessage.textContent = message;
+          }
+        }
+        break;
+      case "login":
+        if (authSection) authSection.style.display = "flex";
+        break;
+      case "loggedIn":
+        if (loggedInSection) loggedInSection.style.display = "flex";
+        break;
+    }
+  }
 
   function updateUI(isLoggedIn, userInfo) {
     if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors
@@ -76,8 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     if (isLoggedIn && userInfo && userInfo.username) {
-      authSection?.style.setProperty("display", "none", "important");
-      loggedInSection?.style.setProperty("display", "flex");
+      showUIState("loggedIn");
 
       // Handle profile image
       if (
@@ -163,8 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log(
         "[popup.js] Logged in, but no userInfo.username. Using fallback message."
       );
-      authSection?.style.setProperty("display", "none", "important");
-      loggedInSection?.style.setProperty("display", "flex");
+      showUIState("loggedIn");
 
       // Show fallback avatar
       if (userProfileImage) userProfileImage.style.display = "none";
@@ -185,8 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         suggestionsCountMessageElement.style.display = "none";
     } else {
       // Not logged in
-      authSection?.style.setProperty("display", "flex");
-      loggedInSection?.style.setProperty("display", "none", "important");
+      showUIState("login");
 
       // Hide all profile elements
       if (userProfileImage) userProfileImage.style.display = "none";
@@ -198,14 +211,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Check login status when popup opens
-  // Immediately set a loading state for the auth section
-  if (loginButton) {
-    loginButton.disabled = true;
-    loginButton.textContent = checkingStatusButtonText;
-  }
-  if (logoutButton) {
-    logoutButton.disabled = true; // Disable logout too during check
-  }
+  // Show loading state immediately
+  showUIState(
+    "loading",
+    chrome.i18n.getMessage("checkingStatus") || "Checking login status..."
+  );
 
   chrome.runtime.sendMessage(
     { type: "CHECK_TWITTER_LOGIN_STATUS" },
@@ -227,17 +237,6 @@ document.addEventListener("DOMContentLoaded", () => {
           updateUI(false);
         }
       }
-      // Restore button states after check is complete, updateUI will handle correct visibility and text
-      if (loginButton) {
-        loginButton.disabled = false;
-        // updateUI will set the correct text if user is logged out (originalLoginButtonText)
-        // or hide it if logged in.
-      }
-      if (logoutButton) {
-        logoutButton.disabled = false;
-        // updateUI will set the correct text if user is logged in (originalLogoutButtonText)
-        // or hide it if logged out.
-      }
 
       // After updating UI based on current login status, check for a recent auth action message
       chrome.storage.local.get("lastAuthAction", (data) => {
@@ -258,44 +257,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (loginButton) {
     loginButton.addEventListener("click", () => {
-      // Disable button immediately to prevent multiple clicks
+      // Add loading state to login button and show loading section
       loginButton.disabled = true;
-      loginButton.textContent =
-        chrome.i18n.getMessage("loggingIn") || "Logging in...";
+      loginButton.classList.add("button-loading");
+      showUIState(
+        "loading",
+        chrome.i18n.getMessage("authenticating") || "Authenticating..."
+      );
       if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors on new attempt
 
       chrome.runtime.sendMessage({ type: "TWITTER_LOGIN" }, (response) => {
+        // Remove loading state from login button
+        loginButton.disabled = false;
+        loginButton.classList.remove("button-loading");
+
         if (chrome.runtime.lastError) {
           console.error(
             "[popup.js] TWITTER_LOGIN Error:",
             chrome.runtime.lastError.message
           );
-          loginButton.disabled = false;
-          loginButton.textContent = originalLoginButtonText;
           showToast(
             chrome.runtime.lastError.message ||
               chrome.i18n.getMessage("loginFailed")
           );
+          updateUI(false); // Show login form again
           return;
         }
         if (response && response.error) {
           console.error("[popup.js] TWITTER_LOGIN Failed:", response.error);
-          loginButton.disabled = false; // Re-enable button on failure
-          loginButton.textContent = originalLoginButtonText; // Reset button text
           showToast(response.error); // Display the error in a toast
-          updateUI(false);
+          updateUI(false); // Show login form again
         } else if (response && response.success && response.userInfo) {
           console.log(
             "[popup.js] TWITTER_LOGIN successful. UserInfo:",
             response.userInfo
           );
-          // showToast(chrome.i18n.getMessage("loginSuccessMessage") || "Login successful!", "success"); // Background script now sets this for next load
-          updateUI(true, response.userInfo); // Update UI with logged-in state
+          // Show loading state while loading user info
+          showUIState(
+            "loading",
+            chrome.i18n.getMessage("loadingUserInfo") ||
+              "Loading user information..."
+          );
+          // Small delay to show the loading message, then update UI
+          setTimeout(() => {
+            updateUI(true, response.userInfo); // Update UI with logged-in state
+          }, 500);
         } else {
           console.error("[popup.js] TWITTER_LOGIN Invalid response:", response);
-          // loginButton.disabled = false; // Already handled by error cases
-          // loginButton.textContent = originalLoginButtonText;
-          // showToast(chrome.i18n.getMessage("loginFailed")); // Background script now sets this for next load
+          updateUI(false); // Show login form again
         }
       });
     });
@@ -303,45 +312,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (logoutButton) {
     logoutButton.addEventListener("click", () => {
-      logoutButton.disabled = true;
-      logoutButton.textContent = loggingOutButtonText;
       if (errorMessageArea) errorMessageArea.textContent = ""; // Clear previous errors
 
-      chrome.runtime.sendMessage({ type: "TWITTER_LOGOUT" }, (response) => {
-        logoutButton.disabled = false; // Re-enable button
-        logoutButton.textContent = originalLogoutButtonText; // Reset button text
+      // Add loading state to logout button
+      logoutButton.disabled = true;
+      logoutButton.classList.add("button-loading");
 
+      chrome.runtime.sendMessage({ type: "TWITTER_LOGOUT" }, (response) => {
+        // Remove loading state
+        logoutButton.disabled = false;
+        logoutButton.classList.remove("button-loading");
         if (chrome.runtime.lastError) {
           console.error(
             "[popup.js] Error sending logout message:",
             chrome.runtime.lastError.message
           );
-          // if (errorMessageArea) errorMessageArea.textContent = response.error;
-          // showToast(response.error); // Background script now sets this for next load
           return; // Exit early
         }
 
         if (response && response.success) {
           console.log("[popup.js] Logout successful.");
-          // showToast(chrome.i18n.getMessage("logoutSuccessMessage") || "Logout successful!", "success"); // Background script now sets this for next load
           updateUI(false);
-          if (loginButton) {
-            loginButton.disabled = false;
-            loginButton.textContent = originalLoginButtonText;
-          }
         } else if (response && response.error) {
           console.error(
             "[popup.js] Logout failed from backend:",
             response.error
           );
-          // if (errorMessageArea) errorMessageArea.textContent = response.error;
-          // showToast(response.error); // Background script now sets this for next load
         } else {
           console.error(
             "[popup.js] Logout failed due to an unknown reason or unexpected response."
           );
-          // if (errorMessageArea) errorMessageArea.textContent = chrome.i18n.getMessage("logoutFailed");
-          // showToast(chrome.i18n.getMessage("logoutFailed")); // Background script now sets this for next load
         }
       });
     });
