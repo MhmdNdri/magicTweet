@@ -47,7 +47,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/icon.svg", "images/icon48.png"],
+      "resources": ["icons/icon.svg", "icons/icon48.png", "icons/icon128.png"],
       "matches": ["*://*.twitter.com/*", "*://*.x.com/*"]
     }
   ]

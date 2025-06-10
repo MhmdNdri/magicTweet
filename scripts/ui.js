@@ -106,23 +106,25 @@ function createFloatingIcon() {
 
     let iconUrl;
     try {
-      iconUrl = chrome.runtime.getURL("icons/icon.svg");
+      // Use icon128.png as the icon
+      iconUrl = chrome.runtime.getURL("icons/icon128.png");
     } catch (e) {
-      iconUrl =
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0 0-1.41L12.42 4.4a.996.996 0 0 0-1.41 0L2.4 13.01a.996.996 0 0 0 0 1.41l1.41 1.41c.39.39 1.02.39 1.41 0l8.6-8.6 8.6 8.6c.39.39 1.02.39 1.41 0l1.41-1.41c.39-.39.39-1.02 0-1.41l-8.6-8.6z'/%3E%3C/svg%3E";
+      // Fallback for environments where chrome.runtime.getURL isn't available
+      iconUrl = "icons/icon128.png";
     }
 
+    // Adjust image style to fit within the button
     icon.innerHTML = `<img src="${iconUrl}" alt="${getLocalizedString(
       "extensionName"
-    )}" style="width: 40px; height: 40px;">`;
+    )}" style="width: 24px; height: 24px; border-radius: 4px;">`;
 
     Object.assign(icon.style, {
       backgroundColor: "transparent",
       color: "#FFFFFF",
       borderRadius: "50%",
       cursor: "pointer",
-      boxShadow: "0 2px 8px rgba(29, 161, 242, 0.3)",
-      transition: "all 0.2s ease",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
       position: "fixed",
       right: "calc(50% - 250px)",
       top: "12%",
@@ -132,16 +134,19 @@ function createFloatingIcon() {
       display: "none",
       alignItems: "center",
       justifyContent: "center",
+      border: "1px solid transparent",
     });
 
     icon.addEventListener("mouseover", () => {
-      icon.style.transform = "translateY(-2px)";
-      icon.style.boxShadow = "0 4px 12px rgba(29, 161, 242, 0.4)";
+      icon.style.transform = "translateY(-3px) scale(1.08)";
+      icon.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.15)";
+      icon.style.borderColor = "var(--primary-color)";
     });
 
     icon.addEventListener("mouseout", () => {
-      icon.style.transform = "translateY(0)";
-      icon.style.boxShadow = "0 2px 8px rgba(29, 161, 242, 0.3)";
+      icon.style.transform = "translateY(0) scale(1)";
+      icon.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.2)";
+      icon.style.borderColor = "transparent";
     });
 
     return icon;
@@ -253,16 +258,16 @@ function createToneSelectionPanel() {
     (contentContainer) => {
       // Define tone icons mapping with inline SVG
       const TONE_ICONS = {
-        styleSarcastic: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M15.5 11c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#FFA500"/></svg>`,
-        tonePlayfulFunny: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M2 20h20l-2-2v-2h-5.5l-.5-4h1c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3c0 1.1.9 2 2 2h1l-.5 4H7v2l-2 2zm3.5-3h13l.5.5h-14l.5-.5zm2.5-7V7h4v3h-4z" fill="#FF6B6B"/></svg>`,
-        toneRomanticSoft: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#E91E63"/></svg>`,
-        toneMelancholicPoetic: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1zM3 18.5V7c1.1-.35 2.3-.5 3.5-.5 1.34 0 3.13.41 4.5.99v11.5C9.63 18.41 7.84 18 6.5 18c-1.2 0-2.4.15-3.5.5z" fill="#6A4C93"/></svg>`,
-        toneHopefulUplifting: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="#4CAF50"/></svg>`,
-        toneCynicalDarkHumor: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 12A5 5 0 0 0 14 7h-5v5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM12 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="#607D8B"/></svg>`,
-        toneOverdramaticTheatrical: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M2 16.5C2 19.54 4.46 22 7.5 22s5.5-2.46 5.5-5.5V10H2v6.5zM7.5 20C5.57 20 4 18.43 4 16.5V12h7v4.5C11 18.43 9.43 20 7.5 20zM16.5 22C19.54 22 22 19.54 22 16.5V10h-11v6.5C11 19.54 13.46 22 16.5 22zM13 12h7v4.5C20 18.43 18.43 20 16.5 20S13 18.43 13 16.5V12zM12 8.5c0-2.49-2.01-4.5-4.5-4.5S3 6.01 3 8.5H12zM21 8.5c0-2.49-2.01-4.5-4.5-4.5S12 6.01 12 8.5H21z" fill="#9C27B0"/></svg>`,
-        toneMinimalistDry: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" fill="#795548"/></svg>`,
-        toneInspirationalMotivational: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 21c0 .5.4 1 1 1h4c.6 0 1-.5 1-1v-1H9v1zm3-19C8.1 2 5 5.1 5 9c0 2.4 1.2 4.5 3 5.7V17c0 .5.4 1 1 1h6c.6 0 1-.5 1-1v-2.3c1.8-1.3 3-3.4 3-5.7 0-3.9-3.1-7-7-7z" fill="#FF9800"/></svg>`,
-        styleRoast: `<svg width="20" height="20" viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z" fill="#F44336"/></svg>`,
+        styleSarcastic: "😏",
+        tonePlayfulFunny: "😂",
+        toneRomanticSoft: "❤️",
+        toneMelancholicPoetic: "✍️",
+        toneHopefulUplifting: "✨",
+        toneCynicalDarkHumor: "😒",
+        toneOverdramaticTheatrical: "🎭",
+        toneMinimalistDry: "😐",
+        toneInspirationalMotivational: "🚀",
+        styleRoast: "🔥",
       };
 
       let toneButtonsHtml = '<div class="magic-tweet-tone-grid">';
@@ -294,6 +299,22 @@ function createToneSelectionPanel() {
       // Add CSS styles
       const style = document.createElement("style");
       style.textContent = `
+        :root {
+          --primary-color: #1DA1F2;
+        }
+        
+        :root[data-theme="light"] {
+          --background-color: #FFFFFF;
+          --text-color: #14171A;
+          --border-color: #E1E8ED;
+        }
+
+        :root[data-theme="dark"] {
+          --background-color: #15202B;
+          --text-color: #FFFFFF;
+          --border-color: #38444D;
+        }
+
         .magic-tweet-tone-grid {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
