@@ -199,6 +199,22 @@
     "message": "Failed to copy",
     "description": "Text shown on the copy button after failure."
   },
+  "guidanceOpenPopupToLogin": {
+    "message": "Please open the extension popup to log in.",
+    "description": "Guidance message shown when user needs to authenticate"
+  },
+  "loginRequired": {
+    "message": "Login Required",
+    "description": "Title for login required error"
+  },
+  "loginRequiredMessage": {
+    "message": "Login required to show suggestions",
+    "description": "Main message when login is required"
+  },
+  "loginButtonText": {
+    "message": "Open Login",
+    "description": "Text for button that opens the extension popup for login"
+  },
   "errorDisplayingSuggestions": {
     "message": "Error displaying suggestions",
     "description": "Error message shown if suggestions cannot be displayed in the UI."

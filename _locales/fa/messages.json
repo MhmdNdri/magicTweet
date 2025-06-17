@@ -276,5 +276,21 @@
   "loadingUserInfo": {
     "message": "در حال بارگیری اطلاعات کاربر...",
     "description": "Message shown when loading user profile information"
+  },
+  "guidanceOpenPopupToLogin": {
+    "message": "لطفاً پاپ‌آپ افزونه را برای ورود باز کنید.",
+    "description": "Guidance message shown when user needs to authenticate"
+  },
+  "loginRequired": {
+    "message": "ورود الزامی است",
+    "description": "Title for login required error"
+  },
+  "loginRequiredMessage": {
+    "message": "برای نمایش پیشنهادات ورود الزامی است",
+    "description": "Main message when login is required"
+  },
+  "loginButtonText": {
+    "message": "باز کردن صفحه ورود",
+    "description": "Text for button that opens the extension popup for login"
   }
 }

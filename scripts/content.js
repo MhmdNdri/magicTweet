@@ -323,15 +323,8 @@ function addToneButtonListeners(tonePanel) {
             }
           } else if (response && response.error) {
             if (response.needsLogin) {
-              // Handle the case where user needs to log in
-              // For now, show error. A better UX might be to prompt login via popup.
-              showError(
-                freshSuggestionPanel,
-                response.error +
-                  " " +
-                  (getLocalizedString("guidanceOpenPopupToLogin") ||
-                    "Please open the extension popup to log in.")
-              );
+              // Handle the case where user needs to log in with a better UI
+              showLoginRequiredError(freshSuggestionPanel);
             } else {
               showError(freshSuggestionPanel, response.error);
             }
@@ -724,6 +717,98 @@ function showError(panel, error) {
       if (tonePanel) {
         panel.style.display = "none";
         tonePanel.style.display = "block";
+      }
+    });
+}
+
+// Function to show a user-friendly login required error
+function showLoginRequiredError(panel) {
+  const content = panel.querySelector(`.${SUGGESTIONS_CLASS}`);
+  content.innerHTML = `
+    <div style="
+      padding: 20px; 
+      text-align: center; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      margin: 8px;
+      color: white;
+      box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    ">
+      <div style="
+        font-size: 18px; 
+        font-weight: 600; 
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 12l2 2 4-4"/>
+          <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
+          <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
+          <path d="M12 3c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3"/>
+          <path d="M12 21c0-1 1-3 3-3s3 2 3 3-1 3-3 3-3-2-3-3"/>
+        </svg>
+        ${getLocalizedString("loginRequired")}
+      </div>
+      <div style="
+        margin-bottom: 16px; 
+        opacity: 0.95;
+        line-height: 1.4;
+      ">
+        ${getLocalizedString("loginRequiredMessage")}
+      </div>
+      <button class="magic-tweet-login-button" style="
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+        padding: 10px 20px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        margin: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      " onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='translateY(-2px)'" 
+         onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.transform='translateY(0)'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10,17 15,12 10,7"/>
+          <line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        ${getLocalizedString("loginButtonText")}
+      </button>
+      <div style="
+        margin-top: 12px;
+        font-size: 12px;
+        opacity: 0.8;
+        line-height: 1.3;
+      ">
+        ${getLocalizedString("guidanceOpenPopupToLogin")}
+      </div>
+    </div>
+  `;
+
+  // Add click handler for the login button
+  content
+    .querySelector(".magic-tweet-login-button")
+    .addEventListener("click", () => {
+      // Open the extension popup (this will vary based on browser)
+      if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      } else {
+        // Fallback: show a toast message with instructions
+        showContentScriptToast(
+          getLocalizedString("guidanceOpenPopupToLogin") ||
+            "Please click the extension icon to login",
+          "info",
+          5000
+        );
       }
     });
 }
