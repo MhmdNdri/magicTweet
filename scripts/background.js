@@ -60,6 +60,209 @@ async function generateCodeChallenge(verifier) {
 
 let codeVerifierForOAuth;
 
+// Handle OAuth response for both Chrome and Firefox
+async function handleOAuthResponse(
+  oauthResponseUrl,
+  expectedState,
+  sendResponse
+) {
+  try {
+    const url = new URL(oauthResponseUrl);
+    const returnedState = url.searchParams.get("state");
+    const authorizationCode = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+
+    if (error) {
+      throw new Error(
+        `OAuth Error: ${error} - ${
+          url.searchParams.get("error_description") || "No description"
+        }`
+      );
+    }
+    if (returnedState !== expectedState) {
+      throw new Error("OAuth state parameter mismatch. Potential CSRF attack.");
+    }
+    if (!authorizationCode) {
+      throw new Error("Authorization code not found in OAuth response.");
+    }
+
+    // Get the stored values (needed for Firefox)
+    const storage = await chrome.storage.local.get([
+      "oauth_code_verifier",
+      "oauth_redirect_uri",
+    ]);
+    const codeVerifier = storage.oauth_code_verifier || codeVerifierForOAuth;
+    const redirectUri =
+      storage.oauth_redirect_uri || chrome.identity.getRedirectURL();
+
+    const tokenParams = new URLSearchParams({
+      code: authorizationCode,
+      grant_type: "authorization_code",
+      client_id: TWITTER_CLIENT_ID,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    });
+    console.log(
+      "Background: Exchanging authorization code for token. Verifier:",
+      codeVerifier
+    );
+
+    const tokenResponse = await fetch(TWITTER_TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams.toString(),
+    });
+    const tokenData = await tokenResponse.json();
+    console.log("Background: Token response data:", tokenData);
+
+    if (!tokenResponse.ok || tokenData.error) {
+      throw new Error(
+        tokenData.error_description ||
+          tokenData.error ||
+          `Failed to fetch tokens: ${tokenResponse.statusText}`
+      );
+    }
+
+    const {
+      access_token,
+      refresh_token,
+      expires_in,
+      scope: granted_scopes,
+    } = tokenData;
+    if (!access_token) {
+      throw new Error("Access token not found in token response.");
+    }
+    console.log(
+      "Background: Access Token obtained:",
+      access_token.substring(0, 10) + "..."
+    );
+
+    // === Call your AWS Backend for user verification and data sync ===
+    const backendApiUrl =
+      "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
+    console.log(
+      "Background: Calling backend API for login/user-sync:",
+      backendApiUrl
+    );
+
+    let backendResponseData;
+    try {
+      const backendResponse = await makeRateLimitedRequest(backendApiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: access_token }), // Lambda defaults to 'login' action
+      });
+      backendResponseData = await backendResponse.json();
+
+      if (!backendResponse.ok || !backendResponseData.userData) {
+        console.error(
+          "Background: Backend API call failed or did not return user data.",
+          backendResponse.status,
+          backendResponseData
+        );
+        throw new Error(
+          `Backend login process failed: ${
+            backendResponseData.message ||
+            backendResponse.statusText ||
+            "Unknown backend error"
+          }`
+        );
+      }
+      console.log(
+        "Background: Backend API call successful. User data from backend:",
+        backendResponseData.userData
+      );
+    } catch (err) {
+      // This catches fetch errors or errors thrown from !backendResponse.ok check
+      console.error(
+        "Background: Error during backend API call for login:",
+        err
+      );
+      throw new Error(
+        `Failed to communicate with backend for login: ${err.message}`
+      );
+    }
+
+    // If backend call was successful, proceed to store tokens and user info from backend
+    const expiresAt = Date.now() + expires_in * 1000;
+    const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget}
+
+    // DETAILED LOGGING (NEW)
+    console.log(
+      "[DEBUG Background TWITTER_LOGIN] User info from backend to be stored:",
+      JSON.stringify(userInfoFromBackend, null, 2)
+    );
+
+    // Store tokens and user info (now sourced from backend)
+    await chrome.storage.local.set({
+      twitter_access_token: access_token,
+      twitter_refresh_token: refresh_token,
+      twitter_token_expires_at: expiresAt,
+      twitter_granted_scopes: granted_scopes,
+      twitter_user_info: {
+        id: userInfoFromBackend.id_str,
+        username: userInfoFromBackend.screen_name,
+        name: userInfoFromBackend.name,
+        profile_image_url: userInfoFromBackend.profile_image_url_https,
+        number_requests: userInfoFromBackend.number_requests,
+        is_paid: userInfoFromBackend.is_paid,
+        budget: userInfoFromBackend.budget,
+      },
+      // Store login attempt result for popup toast
+      lastAuthAction: {
+        type: "login",
+        status: "success",
+        message:
+          chrome.i18n.getMessage("loginSuccessMessage") || "Login successful!",
+        timestamp: Date.now(),
+      },
+    });
+
+    // Clean up OAuth storage
+    await chrome.storage.local.remove([
+      "oauth_state",
+      "oauth_code_verifier",
+      "oauth_redirect_uri",
+    ]);
+
+    console.log(
+      "Background: Twitter tokens, granted scopes, and user info (from backend) stored successfully."
+    );
+    // Send the structured userInfo that popup.js expects
+    sendResponse({
+      success: true,
+      userInfo: {
+        id: userInfoFromBackend.id_str,
+        username: userInfoFromBackend.screen_name,
+        name: userInfoFromBackend.name,
+        profile_image_url: userInfoFromBackend.profile_image_url_https,
+        number_requests: userInfoFromBackend.number_requests,
+        is_paid: userInfoFromBackend.is_paid,
+        budget: userInfoFromBackend.budget,
+      },
+    });
+  } catch (error) {
+    // This catches errors from OAuth steps or if backend communication failed as handled above
+    console.error(
+      "Background: handleOAuthResponse error:",
+      error.message,
+      error.stack ? error.stack.substring(0, 300) : ""
+    );
+    // Store login attempt result for popup toast
+    chrome.storage.local.set({
+      lastAuthAction: {
+        type: "login",
+        status: "error",
+        message: error.message || chrome.i18n.getMessage("loginFailed"),
+        timestamp: Date.now(),
+      },
+    });
+    sendResponse({ success: false, error: error.message });
+  } finally {
+    codeVerifierForOAuth = null; // Clear the verifier
+  }
+}
+
 // === CLIENT-SIDE RATE LIMITING ===
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
@@ -188,205 +391,90 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const authUrl = `${TWITTER_AUTH_URL}?${authParams.toString()}`;
         console.log("Background: Initiating Twitter OAuth. Auth URL:", authUrl);
 
-        const oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
-          url: authUrl,
-          interactive: true,
-        });
-        console.log(
-          "Background: OAuth flow completed. Response URL:",
-          oauthResponseUrl
-        );
+        let oauthResponseUrl;
 
-        if (chrome.runtime.lastError || !oauthResponseUrl) {
-          throw new Error(
-            chrome.runtime.lastError?.message ||
-              "OAuth flow failed or was cancelled."
-          );
-        }
+        // Check if we're running in Firefox
+        const isFirefox =
+          navigator.userAgent.toLowerCase().includes("firefox") ||
+          typeof browser !== "undefined";
 
-        const url = new URL(oauthResponseUrl);
-        const returnedState = url.searchParams.get("state");
-        const authorizationCode = url.searchParams.get("code");
-        const error = url.searchParams.get("error");
+        if (isFirefox) {
+          // Firefox-specific OAuth handling using tabs
+          console.log("Background: Using Firefox tab-based OAuth flow");
 
-        if (error) {
-          throw new Error(
-            `OAuth Error: ${error} - ${
-              url.searchParams.get("error_description") || "No description"
-            }`
-          );
-        }
-        if (returnedState !== state) {
-          throw new Error(
-            "OAuth state parameter mismatch. Potential CSRF attack."
-          );
-        }
-        if (!authorizationCode) {
-          throw new Error("Authorization code not found in OAuth response.");
-        }
-
-        const tokenParams = new URLSearchParams({
-          code: authorizationCode,
-          grant_type: "authorization_code",
-          client_id: TWITTER_CLIENT_ID,
-          redirect_uri: redirectUri,
-          code_verifier: codeVerifierForOAuth,
-        });
-        console.log(
-          "Background: Exchanging authorization code for token. Verifier:",
-          codeVerifierForOAuth
-        );
-
-        const tokenResponse = await fetch(TWITTER_TOKEN_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: tokenParams.toString(),
-        });
-        const tokenData = await tokenResponse.json();
-        console.log("Background: Token response data:", tokenData);
-
-        if (!tokenResponse.ok || tokenData.error) {
-          throw new Error(
-            tokenData.error_description ||
-              tokenData.error ||
-              `Failed to fetch tokens: ${tokenResponse.statusText}`
-          );
-        }
-
-        const {
-          access_token,
-          refresh_token,
-          expires_in,
-          scope: granted_scopes,
-        } = tokenData;
-        if (!access_token) {
-          throw new Error("Access token not found in token response.");
-        }
-        console.log(
-          "Background: Access Token obtained:",
-          access_token.substring(0, 10) + "..."
-        );
-
-        // === Call your AWS Backend for user verification and data sync ===
-        const backendApiUrl =
-          "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/";
-        console.log(
-          "Background: Calling backend API for login/user-sync:",
-          backendApiUrl
-        );
-
-        let backendResponseData;
-        try {
-          const backendResponse = await makeRateLimitedRequest(backendApiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ accessToken: access_token }), // Lambda defaults to 'login' action
+          // Store the state and code verifier for later verification
+          await chrome.storage.local.set({
+            oauth_state: state,
+            oauth_code_verifier: codeVerifierForOAuth,
+            oauth_redirect_uri: redirectUri,
           });
-          backendResponseData = await backendResponse.json();
 
-          if (!backendResponse.ok || !backendResponseData.userData) {
-            console.error(
-              "Background: Backend API call failed or did not return user data.",
-              backendResponse.status,
-              backendResponseData
-            );
+          // Create a new tab for authentication
+          const authTab = await chrome.tabs.create({
+            url: authUrl,
+            active: true,
+          });
+
+          // Listen for tab updates to catch the redirect
+          const tabUpdateListener = (tabId, changeInfo, tab) => {
+            if (
+              tabId === authTab.id &&
+              changeInfo.url &&
+              changeInfo.url.startsWith(redirectUri)
+            ) {
+              oauthResponseUrl = changeInfo.url;
+              chrome.tabs.onUpdated.removeListener(tabUpdateListener);
+              chrome.tabs.remove(tabId);
+
+              // Continue with token exchange
+              handleOAuthResponse(oauthResponseUrl, state, sendResponse);
+            }
+          };
+
+          chrome.tabs.onUpdated.addListener(tabUpdateListener);
+
+          // Handle tab removal (user cancelled)
+          const tabRemovedListener = (tabId) => {
+            if (tabId === authTab.id) {
+              chrome.tabs.onUpdated.removeListener(tabUpdateListener);
+              chrome.tabs.onRemoved.removeListener(tabRemovedListener);
+              sendResponse({
+                success: false,
+                error: "OAuth flow was cancelled by user",
+              });
+            }
+          };
+
+          chrome.tabs.onRemoved.addListener(tabRemovedListener);
+
+          return; // Don't continue with Chrome flow
+        } else {
+          // Chrome OAuth flow
+          oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
+            url: authUrl,
+            interactive: true,
+          });
+          console.log(
+            "Background: OAuth flow completed. Response URL:",
+            oauthResponseUrl
+          );
+
+          if (chrome.runtime.lastError || !oauthResponseUrl) {
             throw new Error(
-              `Backend login process failed: ${
-                backendResponseData.message ||
-                backendResponse.statusText ||
-                "Unknown backend error"
-              }`
+              chrome.runtime.lastError?.message ||
+                "OAuth flow failed or was cancelled."
             );
           }
-          console.log(
-            "Background: Backend API call successful. User data from backend:",
-            backendResponseData.userData
-          );
-        } catch (err) {
-          // This catches fetch errors or errors thrown from !backendResponse.ok check
-          console.error(
-            "Background: Error during backend API call for login:",
-            err
-          );
-          throw new Error(
-            `Failed to communicate with backend for login: ${err.message}`
-          );
+
+          // Continue with token exchange
+          await handleOAuthResponse(oauthResponseUrl, state, sendResponse);
         }
-
-        // If backend call was successful, proceed to store tokens and user info from backend
-        const expiresAt = Date.now() + expires_in * 1000;
-        const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget}
-
-        // DETAILED LOGGING (NEW)
-        console.log(
-          "[DEBUG Background TWITTER_LOGIN] User info from backend to be stored:",
-          JSON.stringify(userInfoFromBackend, null, 2)
-        );
-
-        // Store tokens and user info (now sourced from backend)
-        await chrome.storage.local.set({
-          twitter_access_token: access_token,
-          twitter_refresh_token: refresh_token,
-          twitter_token_expires_at: expiresAt,
-          twitter_granted_scopes: granted_scopes,
-          twitter_user_info: {
-            id: userInfoFromBackend.id_str,
-            username: userInfoFromBackend.screen_name,
-            name: userInfoFromBackend.name,
-            profile_image_url: userInfoFromBackend.profile_image_url_https,
-            number_requests: userInfoFromBackend.number_requests,
-            is_paid: userInfoFromBackend.is_paid,
-            budget: userInfoFromBackend.budget,
-          },
-          // Store login attempt result for popup toast
-          lastAuthAction: {
-            type: "login",
-            status: "success",
-            message:
-              chrome.i18n.getMessage("loginSuccessMessage") ||
-              "Login successful!",
-            timestamp: Date.now(),
-          },
-        });
-
-        console.log(
-          "Background: Twitter tokens, granted scopes, and user info (from backend) stored successfully."
-        );
-        // Send the structured userInfo that popup.js expects
-        sendResponse({
-          success: true,
-          userInfo: {
-            id: userInfoFromBackend.id_str,
-            username: userInfoFromBackend.screen_name,
-            name: userInfoFromBackend.name,
-            profile_image_url: userInfoFromBackend.profile_image_url_https,
-            number_requests: userInfoFromBackend.number_requests,
-            is_paid: userInfoFromBackend.is_paid,
-            budget: userInfoFromBackend.budget,
-          },
-        });
       } catch (error) {
-        // This catches errors from OAuth steps or if backend communication failed as handled above
-        console.error(
-          "Background: TWITTER_LOGIN handler error:",
-          error.message,
-          error.stack ? error.stack.substring(0, 300) : ""
-        );
-        // Store login attempt result for popup toast
-        chrome.storage.local.set({
-          lastAuthAction: {
-            type: "login",
-            status: "error",
-            message: error.message || chrome.i18n.getMessage("loginFailed"),
-            timestamp: Date.now(),
-          },
-        });
-        sendResponse({ error: error.message }); // popup.js doesn't use this directly for toast anymore
-      } finally {
-        codeVerifierForOAuth = null; // Clear the verifier
+        console.error("Background: Error during Twitter OAuth:", error);
+        sendResponse({ success: false, error: error.message });
       }
     })();
-    return true; // Indicates that sendResponse will be called asynchronously.
+    return true; // Keep the message channel open for async response
   } else if (request.action === "generateSuggestions") {
     const toneMessageKey = request.tone; // This is the key like "styleSarcastic"
     const tweetText = request.text;

@@ -1,10 +1,11 @@
 {
   "name": "magic-tweet",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "A browser extension that suggests paraphrased tweets using AI language models",
   "main": "build.js",
   "scripts": {
     "build": "node build.js",
+    "build:firefox": "node build-firefox.js",
     "watch": "nodemon --watch scripts --watch styles --watch manifest.json --watch popup.html --ext js,css,json,html --exec 'pnpm run build'"
   },
   "keywords": [

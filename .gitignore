@@ -30,6 +30,7 @@ yarn-error.log*
 
 # Build output
 /dist 
+/dist-firefox
 
 # Project specific TODO file
 TODO.txt 
