@@ -393,82 +393,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         let oauthResponseUrl;
 
-        // Check if we're running in Firefox
-        const isFirefox =
-          navigator.userAgent.toLowerCase().includes("firefox") ||
-          typeof browser !== "undefined";
+        // Chrome OAuth flow (simplified - no browser detection needed)
+        oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
+          url: authUrl,
+          interactive: true,
+        });
+        console.log(
+          "Background: OAuth flow completed. Response URL:",
+          oauthResponseUrl
+        );
 
-        if (isFirefox) {
-          // Firefox-specific OAuth handling using tabs
-          console.log("Background: Using Firefox tab-based OAuth flow");
-
-          // Store the state and code verifier for later verification
-          await chrome.storage.local.set({
-            oauth_state: state,
-            oauth_code_verifier: codeVerifierForOAuth,
-            oauth_redirect_uri: redirectUri,
-          });
-
-          // Create a new tab for authentication
-          const authTab = await chrome.tabs.create({
-            url: authUrl,
-            active: true,
-          });
-
-          // Listen for tab updates to catch the redirect
-          const tabUpdateListener = (tabId, changeInfo, tab) => {
-            if (
-              tabId === authTab.id &&
-              changeInfo.url &&
-              changeInfo.url.startsWith(redirectUri)
-            ) {
-              oauthResponseUrl = changeInfo.url;
-              chrome.tabs.onUpdated.removeListener(tabUpdateListener);
-              chrome.tabs.remove(tabId);
-
-              // Continue with token exchange
-              handleOAuthResponse(oauthResponseUrl, state, sendResponse);
-            }
-          };
-
-          chrome.tabs.onUpdated.addListener(tabUpdateListener);
-
-          // Handle tab removal (user cancelled)
-          const tabRemovedListener = (tabId) => {
-            if (tabId === authTab.id) {
-              chrome.tabs.onUpdated.removeListener(tabUpdateListener);
-              chrome.tabs.onRemoved.removeListener(tabRemovedListener);
-              sendResponse({
-                success: false,
-                error: "OAuth flow was cancelled by user",
-              });
-            }
-          };
-
-          chrome.tabs.onRemoved.addListener(tabRemovedListener);
-
-          return; // Don't continue with Chrome flow
-        } else {
-          // Chrome OAuth flow
-          oauthResponseUrl = await chrome.identity.launchWebAuthFlow({
-            url: authUrl,
-            interactive: true,
-          });
-          console.log(
-            "Background: OAuth flow completed. Response URL:",
-            oauthResponseUrl
+        if (chrome.runtime.lastError || !oauthResponseUrl) {
+          throw new Error(
+            chrome.runtime.lastError?.message ||
+              "OAuth flow failed or was cancelled."
           );
-
-          if (chrome.runtime.lastError || !oauthResponseUrl) {
-            throw new Error(
-              chrome.runtime.lastError?.message ||
-                "OAuth flow failed or was cancelled."
-            );
-          }
-
-          // Continue with token exchange
-          await handleOAuthResponse(oauthResponseUrl, state, sendResponse);
         }
+
+        // Continue with token exchange
+        await handleOAuthResponse(oauthResponseUrl, state, sendResponse);
       } catch (error) {
         console.error("Background: Error during Twitter OAuth:", error);
         sendResponse({ success: false, error: error.message });

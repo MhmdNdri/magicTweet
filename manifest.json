@@ -4,14 +4,7 @@
   "version": "1.0.5",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "clipboardWrite",
-    "scripting",
-    "identity",
-    "tabs"
-  ],
+  "permissions": ["storage", "clipboardWrite", "identity"],
   "host_permissions": [
     "https://twitter.com/*",
     "https://x.com/*",
