@@ -4,6 +4,11 @@
   "version": "1.0.5",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "magic-tweet@mhmdndri.dev"
+    }
+  },
   "permissions": [
     "activeTab",
     "storage",
