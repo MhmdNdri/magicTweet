@@ -15,7 +15,8 @@
     "clipboardWrite",
     "scripting",
     "identity",
-    "tabs"
+    "tabs",
+    "downloads"
   ],
   "host_permissions": [
     "https://twitter.com/*",
@@ -52,7 +53,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/icon.svg", "icons/icon48.png", "icons/icon128.png"],
+      "resources": [
+        "icons/icon.svg",
+        "icons/icon48.png",
+        "icons/icon128.png",
+        "icons/downloadIconMagicTweet.png"
+      ],
       "matches": ["*://*.twitter.com/*", "*://*.x.com/*"]
     }
   ]

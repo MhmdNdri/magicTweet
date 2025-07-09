@@ -98,6 +98,63 @@ function applyGlobalThemeStyles(isDark) {
   }
 }
 
+function createVideoDownloadIcon() {
+  try {
+    const icon = document.createElement("div");
+    icon.id = VIDEO_DOWNLOAD_ICON_ID;
+    icon.className = VIDEO_DOWNLOAD_ICON_ID;
+
+    // Get custom download icon URL
+    const iconUrl = chrome.runtime.getURL("icons/downloadIconMagicTweet.png");
+
+    // Create download icon with proper styling
+    icon.innerHTML = `<img src="${iconUrl}" alt="Download" style="width: 24px; height: 24px;">`;
+
+    // Apply base styles with glass morphism effect
+    Object.assign(icon.style, {
+      backgroundColor: "rgba(255, 255, 255, 0.4)",
+      borderRadius: "50%",
+      cursor: "pointer",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+      position: "absolute",
+      top: "10px",
+      right: "10px",
+      zIndex: "999999",
+      width: "32px",
+      height: "32px",
+      display: "none",
+      alignItems: "center",
+      justifyContent: "center",
+      border: "none",
+      backdropFilter: "blur(10px)",
+    });
+
+    // Add drop shadow to icon image
+    const img = icon.querySelector("img");
+    if (img) {
+      img.style.filter = "drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3))";
+    }
+
+    // Add hover effects: scale up and become more solid
+    icon.addEventListener("mouseover", () => {
+      icon.style.transform = "scale(1.15)";
+      icon.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
+    });
+
+    icon.addEventListener("mouseout", () => {
+      icon.style.transform = "scale(1)";
+      icon.style.backgroundColor = "rgba(255, 255, 255, 0.4)";
+    });
+
+    return icon;
+  } catch (error) {
+    console.error("Error creating video download icon:", error);
+    if (typeof handleExtensionError === "function") handleExtensionError(error);
+    return null;
+  }
+}
+
 function createFloatingIcon() {
   try {
     const icon = document.createElement("div");

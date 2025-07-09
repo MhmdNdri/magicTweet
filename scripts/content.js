@@ -30,6 +30,10 @@ const RETRY_BUTTON_CLASS = `${EXT_NAMESPACE}-retry`;
 const ERROR_CLASS = `${EXT_NAMESPACE}-error`;
 const TOAST_ID = `${EXT_NAMESPACE}-content-toast`; // Added for content script toasts
 
+// Video Download Feature Constants
+const VIDEO_DOWNLOAD_ICON_ID = `${EXT_NAMESPACE}-video-download-icon`;
+const VIDEO_DOWNLOAD_MODAL_ID = `${EXT_NAMESPACE}-video-download-modal`;
+
 // These keys will be sent to the API. Their corresponding English messages will be used in the prompt.
 const API_TONE_MESSAGE_KEYS = {
   SARCASM: "styleSarcastic",
@@ -45,6 +49,83 @@ const API_TONE_MESSAGE_KEYS = {
 };
 
 const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
+
+// Video Detection Functions
+function findVideoElements() {
+  const videoSelectors = [
+    "video", // Direct video elements
+    '[data-testid*="video"]', // Twitter video containers
+    '[data-testid="videoPlayer"]', // Twitter video player
+    '[data-testid="videoComponent"]', // Twitter video component
+    ".r-1p0dtai", // Twitter video container class
+  ];
+
+  const foundVideos = [];
+
+  videoSelectors.forEach((selector) => {
+    const elements = document.querySelectorAll(selector);
+
+    elements.forEach((element) => {
+      // Check if element is visible and not already processed
+      if (
+        element.offsetParent !== null &&
+        !element.dataset.magicTweetVideoProcessed
+      ) {
+        const container =
+          element.closest('[data-testid="tweet"]') ||
+          element.closest("article");
+
+        foundVideos.push({
+          element: element,
+          type: "video",
+          container: container,
+        });
+        element.dataset.magicTweetVideoProcessed = "true";
+      }
+    });
+  });
+
+  return foundVideos;
+}
+
+function findGifElements() {
+  const gifSelectors = [
+    '[data-testid*="gif"]', // Twitter GIF containers
+    ".gif-player", // GIF player elements
+    '[aria-label*="GIF"]', // Elements with GIF aria-label
+    'img[src*=".gif"]', // Direct GIF images
+  ];
+
+  const foundGifs = [];
+
+  gifSelectors.forEach((selector) => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach((element) => {
+      // Check if element is visible and not already processed
+      if (
+        element.offsetParent !== null &&
+        !element.dataset.magicTweetGifProcessed
+      ) {
+        foundGifs.push({
+          element: element,
+          type: "gif",
+          container:
+            element.closest('[data-testid="tweet"]') ||
+            element.closest("article"),
+        });
+        element.dataset.magicTweetGifProcessed = "true";
+      }
+    });
+  });
+
+  return foundGifs;
+}
+
+function findAllMediaElements() {
+  const videos = findVideoElements();
+  const gifs = findGifElements();
+  return [...videos, ...gifs];
+}
 
 // Function to fetch messages for a specific language (now requests from background)
 async function loadMessages(lang) {
@@ -813,6 +894,80 @@ function showLoginRequiredError(panel) {
     });
 }
 
+// Function to add download icon to video/gif elements
+function addDownloadIconToMedia(mediaItem) {
+  if (!mediaItem || !mediaItem.element) {
+    return;
+  }
+
+  const { element, type, container } = mediaItem;
+
+  // Check if download icon already exists for this element
+  if (element.querySelector(`#${VIDEO_DOWNLOAD_ICON_ID}`)) {
+    return;
+  }
+
+  // Create download icon
+  const downloadIcon = createVideoDownloadIcon();
+  if (!downloadIcon) {
+    return;
+  }
+
+  // Position the icon relative to the media element
+  const mediaContainer =
+    element.closest('[data-testid*="media"]') ||
+    element.closest('[data-testid*="video"]') ||
+    element.closest('[data-testid*="gif"]') ||
+    element;
+
+  if (mediaContainer) {
+    // Ensure the container has relative positioning
+    const computedStyle = window.getComputedStyle(mediaContainer);
+
+    if (computedStyle.position === "static") {
+      mediaContainer.style.position = "relative";
+    }
+
+    // Add the download icon to the container
+    mediaContainer.appendChild(downloadIcon);
+
+    // Show icon on hover
+    const showIcon = () => {
+      downloadIcon.style.display = "flex";
+    };
+
+    const hideIcon = () => {
+      downloadIcon.style.display = "none";
+    };
+
+    mediaContainer.addEventListener("mouseenter", showIcon);
+    mediaContainer.addEventListener("mouseleave", hideIcon);
+
+    // Add click handler to download icon
+    downloadIcon.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      console.log(`Download ${type} clicked:`, element);
+      showContentScriptToast(
+        `${type.toUpperCase()} download feature coming soon!`,
+        "info"
+      );
+
+      // TODO: Implement actual download functionality
+    });
+  }
+}
+
+// Function to scan for and process media elements
+function scanForMediaElements() {
+  const mediaElements = findAllMediaElements();
+
+  mediaElements.forEach((mediaItem) => {
+    addDownloadIconToMedia(mediaItem);
+  });
+}
+
 // Function to remove all extension elements
 function removeExtensionElements() {
   // REMOVED: console.log("MagicTweet: removeExtensionElements() CALLED.");
@@ -821,6 +976,12 @@ function removeExtensionElements() {
     document.getElementById(SUGGESTION_PANEL_ID),
     document.getElementById(TONE_PANEL_ID),
   ];
+
+  // Also remove video download icons
+  const videoDownloadIcons = document.querySelectorAll(
+    `#${VIDEO_DOWNLOAD_ICON_ID}`
+  );
+  videoDownloadIcons.forEach((icon) => icon.remove());
 
   elements.forEach((element) => {
     if (element) element.remove();
@@ -1368,6 +1529,9 @@ async function initialize() {
       if (tweetCompose) {
         addIconToComposer(tweetCompose);
       }
+
+      // Scan for media elements (videos/GIFs) whenever DOM changes
+      scanForMediaElements();
     }, 300);
 
     window.MagicTweetExtension.observer = new MutationObserver(
@@ -1391,6 +1555,9 @@ async function initialize() {
       // REMOVED: console.log("MagicTweet initialize: Initial composer found, adding icon.");
       addIconToComposer(initialTweetCompose);
     }
+
+    // Initial scan for media elements
+    scanForMediaElements();
 
     // Fallback polling mechanism
     if (window.MagicTweetExtension.pollingInterval) {
@@ -1419,6 +1586,9 @@ async function initialize() {
           icon.style.display = isEmpty ? "none" : "flex";
         }
       }
+
+      // Also scan for media elements periodically
+      scanForMediaElements();
     }, 1500); // Check every 1.5 seconds
 
     window.MagicTweetExtension.isInitialized = true;
