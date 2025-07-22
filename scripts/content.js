@@ -54,10 +54,9 @@ const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
 function findVideoElements() {
   const videoSelectors = [
     "video", // Direct video elements
-    '[data-testid*="video"]', // Twitter video containers
     '[data-testid="videoPlayer"]', // Twitter video player
     '[data-testid="videoComponent"]', // Twitter video component
-    ".r-1p0dtai", // Twitter video container class
+    '[data-testid="videoPlayer-video"]', // Specific video player elements
   ];
 
   const foundVideos = [];
@@ -69,11 +68,13 @@ function findVideoElements() {
       // Check if element is visible and not already processed
       if (
         element.offsetParent !== null &&
-        !element.dataset.magicTweetVideoProcessed
+        !element.dataset.magicTweetVideoProcessed &&
+        isActualVideoElement(element)
       ) {
         const container =
           element.closest('[data-testid="tweet"]') ||
-          element.closest("article");
+          element.closest("article") ||
+          element.closest('[data-testid*="media"]'); // Also try media containers
 
         foundVideos.push({
           element: element,
@@ -85,7 +86,63 @@ function findVideoElements() {
     });
   });
 
+  // Also specifically look for video elements with more specific criteria
+  const directVideos = document.querySelectorAll("video");
+  directVideos.forEach((video) => {
+    if (
+      video.offsetParent !== null &&
+      !video.dataset.magicTweetVideoProcessed &&
+      video.src // Must have a source
+    ) {
+      const container =
+        video.closest('[data-testid="tweet"]') ||
+        video.closest("article") ||
+        video.closest('[data-testid*="media"]');
+
+      foundVideos.push({
+        element: video,
+        type: "video",
+        container: container,
+      });
+      video.dataset.magicTweetVideoProcessed = "true";
+    }
+  });
+
   return foundVideos;
+}
+
+function isActualVideoElement(element) {
+  // Filter out non-video elements that might match our selectors
+
+  // If it's a direct video element, it's valid
+  if (element.tagName === "VIDEO") {
+    return true;
+  }
+
+  const className = element.className || "";
+  const testId = element.getAttribute("data-testid") || "";
+
+  // Exclude profile/avatar related elements (most important filter)
+  if (
+    className.includes("avatar") ||
+    className.includes("profile") ||
+    testId.includes("avatar") ||
+    testId.includes("profile") ||
+    element.closest('[data-testid*="avatar"]') ||
+    element.closest('[data-testid*="profile"]')
+  ) {
+    return false;
+  }
+
+  // For container elements, check if they contain video or have video-related attributes
+  const hasVideo = element.querySelector("video") !== null;
+  const hasVideoAttributes =
+    testId.includes("video") || testId.includes("Player");
+
+  if (!hasVideo && !hasVideoAttributes) {
+    return false;
+  }
+  return true;
 }
 
 function findGifElements() {
@@ -104,7 +161,8 @@ function findGifElements() {
       // Check if element is visible and not already processed
       if (
         element.offsetParent !== null &&
-        !element.dataset.magicTweetGifProcessed
+        !element.dataset.magicTweetGifProcessed &&
+        isActualGifElement(element)
       ) {
         foundGifs.push({
           element: element,
@@ -118,7 +176,60 @@ function findGifElements() {
     });
   });
 
+  // Also specifically look for actual GIF images, but be more selective
+  const gifImages = document.querySelectorAll(
+    'img[src*=".gif"], img[src*="gif"]'
+  );
+  gifImages.forEach((img) => {
+    if (
+      img.offsetParent !== null &&
+      !img.dataset.magicTweetGifProcessed &&
+      (img.src.includes(".gif") || img.src.includes("gif")) && // Must actually be a GIF
+      isActualGifElement(img)
+    ) {
+      foundGifs.push({
+        element: img,
+        type: "gif",
+        container:
+          img.closest('[data-testid="tweet"]') || img.closest("article"),
+      });
+      img.dataset.magicTweetGifProcessed = "true";
+    }
+  });
+
   return foundGifs;
+}
+
+function isActualGifElement(element) {
+  // Filter out non-GIF elements that might match our selectors
+
+  const className = element.className || "";
+  const testId = element.getAttribute("data-testid") || "";
+
+  // Exclude profile pictures, avatars, and other non-media content
+  if (
+    className.includes("avatar") ||
+    className.includes("profile") ||
+    testId.includes("avatar") ||
+    testId.includes("profile") ||
+    element.closest('[data-testid*="avatar"]') ||
+    element.closest('[data-testid*="profile"]')
+  ) {
+    return false;
+  }
+
+  // Check if it actually contains GIF content or is a GIF itself
+  const hasGifContent =
+    element.tagName === "IMG" ||
+    element.querySelector("img") ||
+    element.querySelector("video") ||
+    testId.includes("gif") ||
+    className.includes("gif");
+
+  if (!hasGifContent) {
+    return false;
+  }
+  return true;
 }
 
 function findAllMediaElements() {
@@ -907,6 +1018,21 @@ function addDownloadIconToMedia(mediaItem) {
     return;
   }
 
+  // Check if extension context is still valid before creating icon
+  try {
+    if (!chrome.runtime || !chrome.runtime.id) {
+      console.warn(
+        "Extension context invalidated, skipping download icon creation"
+      );
+      return;
+    }
+  } catch (contextError) {
+    console.warn(
+      "Extension context invalidated, skipping download icon creation"
+    );
+    return;
+  }
+
   // Create download icon
   const downloadIcon = createVideoDownloadIcon();
   if (!downloadIcon) {
@@ -959,9 +1085,67 @@ function addDownloadIconToMedia(mediaItem) {
   }
 }
 
+// Helper function to check if element is actually a photo (conservative approach)
+function isPhotoElement(element) {
+  // If it's a video element, it's definitely not a photo
+  if (element.tagName === "VIDEO") {
+    return false;
+  }
+
+  // If it has video-related test IDs, it's not a photo
+  const testId = element.getAttribute("data-testid") || "";
+  if (testId.includes("video") && !testId.includes("photo")) {
+    return false;
+  }
+
+  // If it's explicitly in a video container, it's not a photo
+  if (
+    element.closest('video, [data-testid*="video"]:not([data-testid*="photo"])')
+  ) {
+    return false;
+  }
+
+  // Only flag as photo if it's clearly a photo element
+  // Profile pictures and avatars
+  if (testId.includes("avatar") || testId.includes("profile")) {
+    return true;
+  }
+
+  // Explicit photo containers
+  if (testId.includes("photo") || testId.includes("image")) {
+    return true;
+  }
+
+  // IMG elements that are clearly photos (not video thumbnails or GIF frames)
+  if (element.tagName === "IMG") {
+    const src = element.src || "";
+    const alt = element.alt || "";
+
+    // Profile/avatar images
+    if (
+      alt.includes("avatar") ||
+      alt.includes("profile") ||
+      src.includes("profile")
+    ) {
+      return true;
+    }
+
+    // Tweet photo containers
+    if (element.closest('[data-testid="tweetPhoto"], [aria-label*="Image"]')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // Function to scan for and process media elements
 function scanForMediaElements() {
-  const mediaElements = findAllMediaElements();
+  const videoElements = findVideoElements();
+  const gifElements = findGifElements();
+  const mediaElements = [...videoElements, ...gifElements];
+
+  // Process media elements
 
   mediaElements.forEach((mediaItem) => {
     addDownloadIconToMedia(mediaItem);

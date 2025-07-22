@@ -104,8 +104,17 @@ function createVideoDownloadIcon() {
     icon.id = VIDEO_DOWNLOAD_ICON_ID;
     icon.className = VIDEO_DOWNLOAD_ICON_ID;
 
-    // Get custom download icon URL
-    const iconUrl = chrome.runtime.getURL("icons/downloadIconMagicTweet.png");
+    // Get custom download icon URL with error handling for context invalidation
+    let iconUrl;
+    try {
+      iconUrl = chrome.runtime.getURL("icons/downloadIconMagicTweet.png");
+    } catch (contextError) {
+      console.warn("Extension context invalidated, using fallback icon");
+      // Use a simple SVG icon as fallback when extension context is lost
+      const svgContent =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+      iconUrl = `data:image/svg+xml;base64,${btoa(svgContent)}`;
+    }
 
     // Create download icon with proper styling
     icon.innerHTML = `<img src="${iconUrl}" alt="Download" style="width: 24px; height: 24px;">`;
@@ -166,8 +175,13 @@ function createFloatingIcon() {
       // Use icon128.png as the icon
       iconUrl = chrome.runtime.getURL("icons/icon128.png");
     } catch (e) {
-      // Fallback for environments where chrome.runtime.getURL isn't available
-      iconUrl = "icons/icon128.png";
+      console.warn(
+        "Extension context invalidated for floating icon, using fallback"
+      );
+      // Use a simple SVG icon as fallback when extension context is lost
+      const svgContent =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>';
+      iconUrl = `data:image/svg+xml;base64,${btoa(svgContent)}`;
     }
 
     // Adjust image style to fit within the button
