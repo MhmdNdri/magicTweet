@@ -119,7 +119,10 @@ function isActualVideoElement(element) {
     return true;
   }
 
-  const className = element.className || "";
+  const className =
+    (element.className && element.className.toString
+      ? element.className.toString()
+      : element.className) || "";
   const testId = element.getAttribute("data-testid") || "";
 
   // Exclude profile/avatar related elements (most important filter)
@@ -148,9 +151,15 @@ function isActualVideoElement(element) {
 function findGifElements() {
   const gifSelectors = [
     '[data-testid*="gif"]', // Twitter GIF containers
+    '[data-testid="tweetPhoto"]', // Tweet photo containers that might contain GIFs
+    '[data-testid="media"]', // General media containers
     ".gif-player", // GIF player elements
     '[aria-label*="GIF"]', // Elements with GIF aria-label
+    '[aria-label*="gif"]', // Elements with lowercase gif aria-label
     'img[src*=".gif"]', // Direct GIF images
+    'img[src*="gif"]', // Images with gif in URL
+    'video[poster*="gif"]', // Videos with GIF posters
+    '[role="img"]', // Images that might be GIFs
   ];
 
   const foundGifs = [];
@@ -203,7 +212,10 @@ function findGifElements() {
 function isActualGifElement(element) {
   // Filter out non-GIF elements that might match our selectors
 
-  const className = element.className || "";
+  const className =
+    (element.className && element.className.toString
+      ? element.className.toString()
+      : element.className) || "";
   const testId = element.getAttribute("data-testid") || "";
 
   // Exclude profile pictures, avatars, and other non-media content
@@ -218,13 +230,44 @@ function isActualGifElement(element) {
     return false;
   }
 
-  // Check if it actually contains GIF content or is a GIF itself
+  // Check if it's explicitly a photo (and not a GIF)
+  const isExplicitPhoto =
+    (testId.includes("photo") && !testId.includes("gif")) ||
+    (testId.includes("image") && !testId.includes("gif")) ||
+    (element.tagName === "IMG" &&
+      element.src &&
+      !element.src.includes("gif") &&
+      !element.src.includes("video") &&
+      (element.src.includes(".jpg") ||
+        element.src.includes(".jpeg") ||
+        element.src.includes(".png") ||
+        element.src.includes(".webp"))) ||
+    (element.getAttribute("aria-label")?.toLowerCase().includes("photo") &&
+      !element.getAttribute("aria-label")?.toLowerCase().includes("gif")) ||
+    (element.getAttribute("aria-label")?.toLowerCase().includes("image") &&
+      !element.getAttribute("aria-label")?.toLowerCase().includes("gif"));
+
+  if (isExplicitPhoto) {
+    return false;
+  }
+
+  // Check if it actually contains GIF content, is a GIF itself, or is a video
   const hasGifContent =
-    element.tagName === "IMG" ||
-    element.querySelector("img") ||
-    element.querySelector("video") ||
+    // Explicit GIF indicators
     testId.includes("gif") ||
-    className.includes("gif");
+    className.includes("gif") ||
+    element.getAttribute("aria-label")?.toLowerCase().includes("gif") ||
+    (element.src && element.src.includes("gif")) ||
+    (element.tagName === "IMG" && element.src && element.src.includes("gif")) ||
+    element.querySelector("img[src*='gif']") ||
+    element.querySelector("video[poster*='gif']") ||
+    // Video elements (for GIFs that might be served as videos)
+    element.tagName === "VIDEO" ||
+    element.querySelector("video") ||
+    testId.includes("video") ||
+    // Media containers that might contain GIFs or videos (but not static photos)
+    (testId.includes("media") && !isExplicitPhoto) ||
+    (testId.includes("Photo") && !isExplicitPhoto);
 
   if (!hasGifContent) {
     return false;
@@ -1146,7 +1189,6 @@ function scanForMediaElements() {
   const mediaElements = [...videoElements, ...gifElements];
 
   // Process media elements
-
   mediaElements.forEach((mediaItem) => {
     addDownloadIconToMedia(mediaItem);
   });
