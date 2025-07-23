@@ -866,10 +866,17 @@ function createVideoDownloadModal() {
             </div>
           </div>
           <div class="download-complete" style="display: none;">
-            <div class="success-icon">✅</div>
-            <h4>Download Complete!</h4>
-            <p class="downloaded-filename"></p>
-            <button class="download-file-btn">Download File</button>
+            <div class="complete-content">
+              <img class="complete-thumbnail" src="" alt="Video thumbnail">
+              <div class="complete-text">
+                <div class="complete-header">
+                  <div class="success-icon">✓</div>
+                  <h4>Ready to download</h4>
+                </div>
+                <p class="downloaded-filename"></p>
+              </div>
+              <button class="download-file-btn">Download</button>
+            </div>
           </div>
           <div class="error-state" style="display: none;">
             <div class="error-icon">❌</div>
@@ -893,7 +900,7 @@ function createVideoDownloadModal() {
     display: "none",
   });
 
-  // Add CSS styles
+  // Add CSS styles with dark mode support
   const style = document.createElement("style");
   style.textContent = `
     .${EXT_NAMESPACE}-download-modal .modal-overlay {
@@ -911,7 +918,8 @@ function createVideoDownloadModal() {
     }
 
     .${EXT_NAMESPACE}-download-modal .modal-content {
-      background: var(--background-color, #ffffff);
+      background: rgb(255, 255, 255);
+      color: rgb(20, 23, 26);
       border-radius: 16px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
       max-width: 500px;
@@ -921,19 +929,36 @@ function createVideoDownloadModal() {
       animation: slideUp 0.3s ease;
     }
 
+    /* Dark mode styles */
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .modal-content,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .modal-content {
+      background: rgb(21, 32, 43);
+      color: rgb(247, 249, 249);
+    }
+
     .${EXT_NAMESPACE}-download-modal .modal-header {
       padding: 20px 24px 16px;
-      border-bottom: 1px solid var(--border-color, #e1e8ed);
+      border-bottom: 1px solid rgb(225, 232, 237);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .modal-header,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .modal-header {
+      border-bottom: 1px solid rgb(56, 68, 77);
+    }
+
     .${EXT_NAMESPACE}-download-modal .modal-header h3 {
       margin: 0;
-      color: var(--text-color, #14171a);
+      color: rgb(20, 23, 26);
       font-size: 18px;
       font-weight: 600;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .modal-header h3,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .modal-header h3 {
+      color: rgb(247, 249, 249);
     }
 
     .${EXT_NAMESPACE}-download-modal .close-modal {
@@ -941,14 +966,24 @@ function createVideoDownloadModal() {
       border: none;
       font-size: 24px;
       cursor: pointer;
-      color: var(--text-color, #14171a);
+      color: rgb(20, 23, 26);
       padding: 4px;
       border-radius: 50%;
       transition: background 0.2s;
     }
 
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .close-modal,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .close-modal {
+      color: rgb(247, 249, 249);
+    }
+
     .${EXT_NAMESPACE}-download-modal .close-modal:hover {
-      background: var(--hover-bg, #f7f9fa);
+      background: rgb(247, 249, 250);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .close-modal:hover,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .close-modal:hover {
+      background: rgb(56, 68, 77);
     }
 
     .${EXT_NAMESPACE}-download-modal .modal-body {
@@ -977,8 +1012,13 @@ function createVideoDownloadModal() {
       gap: 16px;
       margin-bottom: 24px;
       padding: 16px;
-      background: var(--secondary-bg, #f7f9fa);
+      background: rgb(247, 249, 250);
       border-radius: 12px;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .video-info,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .video-info {
+      background: rgb(32, 35, 39);
     }
 
     .${EXT_NAMESPACE}-download-modal .video-thumbnail {
@@ -991,23 +1031,38 @@ function createVideoDownloadModal() {
 
     .${EXT_NAMESPACE}-download-modal .video-details h4 {
       margin: 0 0 8px 0;
-      color: var(--text-color, #14171a);
+      color: rgb(20, 23, 26);
       font-size: 16px;
       font-weight: 600;
       line-height: 1.3;
     }
 
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .video-details h4,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .video-details h4 {
+      color: rgb(247, 249, 249);
+    }
+
     .${EXT_NAMESPACE}-download-modal .video-details p {
       margin: 4px 0;
-      color: var(--secondary-text, #657786);
+      color: rgb(101, 119, 134);
       font-size: 14px;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .video-details p,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .video-details p {
+      color: rgb(139, 152, 165);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-options h4 {
       margin: 0 0 16px 0;
-      color: var(--text-color, #14171a);
+      color: rgb(20, 23, 26);
       font-size: 16px;
       font-weight: 600;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-options h4,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-options h4 {
+      color: rgb(247, 249, 249);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-item {
@@ -1015,21 +1070,36 @@ function createVideoDownloadModal() {
       align-items: center;
       justify-content: space-between;
       padding: 12px 16px;
-      border: 2px solid var(--border-color, #e1e8ed);
+      border: 2px solid rgb(225, 232, 237);
       border-radius: 8px;
       margin-bottom: 8px;
       cursor: pointer;
       transition: all 0.2s;
     }
 
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-item,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-item {
+      border: 2px solid rgb(56, 68, 77);
+    }
+
     .${EXT_NAMESPACE}-download-modal .quality-item:hover {
-      border-color: var(--primary-color, #1da1f2);
-      background: var(--hover-bg, #f7f9fa);
+      border-color: rgb(29, 161, 242);
+      background: rgb(247, 249, 250);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-item:hover,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-item:hover {
+      background: rgb(32, 35, 39);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-item.selected {
-      border-color: var(--primary-color, #1da1f2);
+      border-color: rgb(29, 161, 242);
       background: rgba(29, 161, 242, 0.1);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-item.selected,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-item.selected {
+      background: rgba(29, 161, 242, 0.2);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-main {
@@ -1039,19 +1109,34 @@ function createVideoDownloadModal() {
 
     .${EXT_NAMESPACE}-download-modal .quality-label {
       font-weight: 600;
-      color: var(--text-color, #14171a);
+      color: rgb(20, 23, 26);
       margin-bottom: 4px;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-label,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-label {
+      color: rgb(247, 249, 249);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-details {
       font-size: 12px;
-      color: var(--secondary-text, #657786);
+      color: rgb(101, 119, 134);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-details,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-details {
+      color: rgb(139, 152, 165);
     }
 
     .${EXT_NAMESPACE}-download-modal .quality-size {
       font-size: 12px;
-      color: var(--secondary-text, #657786);
+      color: rgb(101, 119, 134);
       font-weight: 500;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .quality-size,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .quality-size {
+      color: rgb(139, 152, 165);
     }
 
     .${EXT_NAMESPACE}-download-modal .download-actions {
@@ -1060,7 +1145,12 @@ function createVideoDownloadModal() {
       justify-content: flex-end;
       margin-top: 24px;
       padding-top: 16px;
-      border-top: 1px solid var(--border-color, #e1e8ed);
+      border-top: 1px solid rgb(225, 232, 237);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .download-actions,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .download-actions {
+      border-top: 1px solid rgb(56, 68, 77);
     }
 
     .${EXT_NAMESPACE}-download-modal .download-actions button {
@@ -1074,21 +1164,32 @@ function createVideoDownloadModal() {
     }
 
     .${EXT_NAMESPACE}-download-modal .cancel-download {
-      background: var(--secondary-bg, #f7f9fa);
-      color: var(--text-color, #14171a);
+      background: rgb(247, 249, 250);
+      color: rgb(20, 23, 26);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .cancel-download,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .cancel-download {
+      background: rgb(32, 35, 39);
+      color: rgb(247, 249, 249);
     }
 
     .${EXT_NAMESPACE}-download-modal .cancel-download:hover {
-      background: var(--border-color, #e1e8ed);
+      background: rgb(225, 232, 237);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .cancel-download:hover,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .cancel-download:hover {
+      background: rgb(56, 68, 77);
     }
 
     .${EXT_NAMESPACE}-download-modal .start-download {
-      background: var(--primary-color, #1da1f2);
+      background: rgb(29, 161, 242);
       color: white;
     }
 
     .${EXT_NAMESPACE}-download-modal .start-download:hover:not(:disabled) {
-      background: #1991db;
+      background: rgb(26, 145, 218);
     }
 
     .${EXT_NAMESPACE}-download-modal .start-download:disabled {
@@ -1099,15 +1200,20 @@ function createVideoDownloadModal() {
     .${EXT_NAMESPACE}-download-modal .progress-bar {
       width: 100%;
       height: 8px;
-      background: var(--border-color, #e1e8ed);
+      background: rgb(225, 232, 237);
       border-radius: 4px;
       overflow: hidden;
       margin: 16px 0;
     }
 
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .progress-bar,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .progress-bar {
+      background: rgb(56, 68, 77);
+    }
+
     .${EXT_NAMESPACE}-download-modal .progress-fill {
       height: 100%;
-      background: var(--primary-color, #1da1f2);
+      background: rgb(29, 161, 242);
       transition: width 0.3s ease;
       width: 0%;
     }
@@ -1116,31 +1222,134 @@ function createVideoDownloadModal() {
       display: flex;
       justify-content: space-between;
       font-size: 14px;
-      color: var(--secondary-text, #657786);
+      color: rgb(101, 119, 134);
     }
 
-    .${EXT_NAMESPACE}-download-modal .download-complete,
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .progress-details,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .progress-details {
+      color: rgb(139, 152, 165);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-complete {
+      padding: 24px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .complete-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: rgb(247, 249, 250);
+      border-radius: 12px;
+      border: 1px solid rgb(29, 161, 242);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .complete-content,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .complete-content {
+      background: rgb(32, 35, 39);
+      border: 1px solid rgb(29, 161, 242);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .complete-thumbnail {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .complete-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .complete-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .success-icon {
+      width: 18px;
+      height: 18px;
+      background: rgb(29, 161, 242);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .complete-text h4 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: rgb(20, 23, 26);
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .complete-text h4,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .complete-text h4 {
+      color: rgb(247, 249, 249);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .downloaded-filename {
+      margin: 0;
+      font-size: 13px;
+      color: rgb(101, 119, 134);
+      line-height: 1.3;
+      word-break: break-all;
+    }
+
+    [data-theme="dark"] .${EXT_NAMESPACE}-download-modal .downloaded-filename,
+    html[data-color-mode="dark"] .${EXT_NAMESPACE}-download-modal .downloaded-filename {
+      color: rgb(139, 152, 165);
+    }
+
     .${EXT_NAMESPACE}-download-modal .error-state {
       text-align: center;
       padding: 40px 20px;
     }
 
-    .${EXT_NAMESPACE}-download-modal .success-icon,
     .${EXT_NAMESPACE}-download-modal .error-icon {
       font-size: 48px;
       margin-bottom: 16px;
     }
 
-    .${EXT_NAMESPACE}-download-modal .download-file-btn,
+    .${EXT_NAMESPACE}-download-modal .download-file-btn {
+      background: rgb(29, 161, 242);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-file-btn:hover {
+      background: rgb(26, 145, 218);
+    }
+
     .${EXT_NAMESPACE}-download-modal .retry-download {
-      background: var(--primary-color, #1da1f2);
+      background: rgb(29, 161, 242);
       color: white;
       border: none;
       padding: 12px 24px;
       border-radius: 20px;
       font-weight: 600;
       cursor: pointer;
-      margin-top: 16px;
+      width: 100%;
+      font-size: 15px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .retry-download:hover {
+      background: rgb(26, 145, 218);
     }
 
     @keyframes fadeIn {
@@ -1200,5 +1409,5 @@ function formatQualityLabel(format) {
   const quality = format.quality || "Unknown";
   const fps = format.fps ? ` ${format.fps}fps` : "";
 
-  return `${resolution}${fps} - ${quality}`;
+  return `${resolution}${fps}`;
 }

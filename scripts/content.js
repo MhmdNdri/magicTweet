@@ -2251,6 +2251,7 @@ function showDownloadComplete(
   const downloadComplete = modal.querySelector(".download-complete");
   const downloadedFilename = modal.querySelector(".downloaded-filename");
   const downloadFileBtn = modal.querySelector(".download-file-btn");
+  const completeThumbnail = modal.querySelector(".complete-thumbnail");
 
   downloadProgress.style.display = "none";
   downloadComplete.style.display = "block";
@@ -2259,6 +2260,11 @@ function showDownloadComplete(
     downloadResult?.filename ||
     `${videoInfo.title || "twitter_video"}.${selectedFormat.ext || "mp4"}`;
   downloadedFilename.textContent = filename;
+
+  // Set the thumbnail from video info
+  if (completeThumbnail && videoInfo.thumbnail) {
+    completeThumbnail.src = videoInfo.thumbnail;
+  }
 
   downloadFileBtn.onclick = () => {
     if (downloadResult?.filepath) {
