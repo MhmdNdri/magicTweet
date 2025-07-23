@@ -7,6 +7,8 @@ const {
 } = require("@aws-sdk/lib-dynamodb");
 const { SSMClient, GetParametersCommand } = require("@aws-sdk/client-ssm");
 const { TwitterApi } = require("twitter-api-v2");
+const https = require("https");
+const http = require("http");
 
 const LAMBDA_CODE_VERSION = "v2.0.10_RATE_LIMIT_FIX_REVIEWED";
 
@@ -29,6 +31,11 @@ const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
 const XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions";
 
+// Video Download Service Configuration
+const VIDEO_DOWNLOAD_SERVICE_URL =
+  process.env.VIDEO_DOWNLOAD_SERVICE_URL ||
+  "https://web-production-5536a.up.railway.app";
+
 // === RATE LIMITING VARIABLES ===
 // Cache for authenticated users to avoid repeated Twitter API calls
 const userAuthCache = new Map();
@@ -41,6 +48,108 @@ let activeRequests = 0;
 let rateLimitResetTime = null;
 let rateLimitRemaining = null;
 let consecutiveErrors = 0;
+
+// === VIDEO DOWNLOAD UTILITIES ===
+async function callVideoDownloadService(endpoint, data) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${VIDEO_DOWNLOAD_SERVICE_URL}${endpoint}`);
+    const postData = JSON.stringify(data);
+
+    const options = {
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postData),
+      },
+      timeout: 30000, // 30 seconds timeout
+    };
+
+    const protocol = url.protocol === "https:" ? https : http;
+
+    const req = protocol.request(options, (res) => {
+      let responseBody = "";
+
+      res.on("data", (chunk) => {
+        responseBody += chunk;
+      });
+
+      res.on("end", () => {
+        try {
+          const parsedResponse = JSON.parse(responseBody);
+          resolve(parsedResponse);
+        } catch (parseError) {
+          reject(new Error(`Failed to parse response: ${parseError.message}`));
+        }
+      });
+    });
+
+    req.on("error", (error) => {
+      reject(new Error(`Request failed: ${error.message}`));
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Request timeout"));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function getVideoInfo(videoUrl) {
+  try {
+    console.log(`Getting video info for: ${videoUrl}`);
+    const response = await callVideoDownloadService("/video_info", {
+      url: videoUrl,
+    });
+    return response;
+  } catch (error) {
+    console.error("Error getting video info:", error);
+    return {
+      success: false,
+      error: "Service unavailable",
+      message: "Video download service is currently unavailable",
+    };
+  }
+}
+
+async function downloadVideo(videoUrl, formatId) {
+  try {
+    console.log(`Starting download for: ${videoUrl}, format: ${formatId}`);
+    const response = await callVideoDownloadService("/download", {
+      url: videoUrl,
+      format_id: formatId,
+    });
+    return response;
+  } catch (error) {
+    console.error("Error starting download:", error);
+    return {
+      success: false,
+      error: "Service unavailable",
+      message: "Video download service is currently unavailable",
+    };
+  }
+}
+
+async function getDownloadProgress(progressId) {
+  try {
+    const response = await callVideoDownloadService(
+      `/progress/${progressId}`,
+      {}
+    );
+    return response;
+  } catch (error) {
+    console.error("Error getting download progress:", error);
+    return {
+      status: "error",
+      message: "Could not get download progress",
+    };
+  }
+}
 
 // === EXPONENTIAL BACKOFF UTILITY ===
 function calculateBackoffDelay(attempt) {
@@ -1102,6 +1211,91 @@ exports.handler = async (event) => {
           message: "Suggestions generated successfully.",
           suggestions: suggestionsContent,
         }),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
+    } else if (action === "getVideoInfo") {
+      const { videoUrl } = requestBody || {};
+
+      if (!videoUrl) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message: "Missing videoUrl parameter for getVideoInfo action",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      const videoInfo = await getVideoInfo(videoUrl);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(videoInfo),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
+    } else if (action === "downloadVideo") {
+      const { videoUrl, formatId } = requestBody || {};
+
+      if (!videoUrl) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message: "Missing videoUrl parameter for downloadVideo action",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      const downloadResult = await downloadVideo(videoUrl, formatId);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(downloadResult),
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin":
+            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        },
+      };
+    } else if (action === "getDownloadProgress") {
+      const { progressId } = requestBody || {};
+
+      if (!progressId) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            message:
+              "Missing progressId parameter for getDownloadProgress action",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin":
+              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          },
+        };
+      }
+
+      const progressResult = await getDownloadProgress(progressId);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(progressResult),
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin":

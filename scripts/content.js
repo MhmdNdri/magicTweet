@@ -50,6 +50,10 @@ const API_TONE_MESSAGE_KEYS = {
 
 const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
 
+// Video Download Service Configuration
+const VIDEO_DOWNLOAD_SERVICE_URL =
+  "https://web-production-5536a.up.railway.app"; // Railway deployed Python server
+
 // Video Detection Functions
 function findVideoElements() {
   const videoSelectors = [
@@ -1118,12 +1122,9 @@ function addDownloadIconToMedia(mediaItem) {
       e.stopPropagation();
 
       console.log(`Download ${type} clicked:`, element);
-      showContentScriptToast(
-        `${type.toUpperCase()} download feature coming soon!`,
-        "info"
-      );
 
-      // TODO: Implement actual download functionality
+      // Use the new quality selection modal
+      await handleVideoDownload({ element, type, container });
     });
   }
 }
@@ -1949,3 +1950,349 @@ history.replaceState = function () {
   handleSPAnavigation();
 };
 // --- End SPA Navigation Handling ---
+
+// Video download functionality
+async function handleVideoDownload(mediaItem) {
+  const videoUrl = getVideoUrlFromElement(mediaItem.element);
+
+  if (!videoUrl) {
+    showContentScriptToast("Could not extract video URL", "error", 3000);
+    return;
+  }
+
+  // Create and show modal
+  const modal = createVideoDownloadModal();
+  // Store the mediaItem in the modal for later use
+  modal.mediaItem = mediaItem;
+  document.body.appendChild(modal);
+  modal.style.display = "block";
+
+  try {
+    // Get video info from your backend
+    const videoInfo = await getVideoInfo(videoUrl);
+
+    if (!videoInfo.success) {
+      showErrorInModal(
+        modal,
+        videoInfo.message || videoInfo.error || "Failed to analyze video"
+      );
+      return;
+    }
+
+    // Show quality selection
+    showQualitySelection(modal, videoInfo, videoUrl);
+  } catch (error) {
+    console.error("Error getting video info:", error);
+    showErrorInModal(modal, "Failed to analyze video. Please try again.");
+  }
+}
+
+function getVideoUrlFromElement(element) {
+  // Try to extract the Twitter video URL
+  const tweetElement =
+    element.closest('[data-testid="tweet"]') || element.closest("article");
+  if (!tweetElement) return null;
+
+  // Look for tweet link
+  const tweetLink = tweetElement.querySelector('a[href*="/status/"]');
+  if (tweetLink) {
+    return tweetLink.href;
+  }
+
+  // Fallback: try to get from current page URL if we're on a tweet page
+  if (window.location.href.includes("/status/")) {
+    return window.location.href;
+  }
+
+  return null;
+}
+
+async function getVideoInfo(url) {
+  try {
+    // Convert x.com URLs to twitter.com URLs for yt-dlp compatibility
+    const twitterUrl = url.replace("x.com", "twitter.com");
+
+    const response = await chrome.runtime.sendMessage({
+      action: "getVideoInfo",
+      videoUrl: twitterUrl,
+    });
+
+    if (chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError.message);
+    }
+
+    return response;
+  } catch (error) {
+    console.error("Error getting video info:", error);
+    return {
+      success: false,
+      error: "Network error",
+      message: "Could not connect to download service",
+    };
+  }
+}
+
+function showQualitySelection(modal, videoInfo, videoUrl) {
+  const loadingState = modal.querySelector(".loading-state");
+  const qualitySelection = modal.querySelector(".quality-selection");
+
+  // Hide loading, show quality selection
+  loadingState.style.display = "none";
+  qualitySelection.style.display = "block";
+
+  // Populate video info
+  const thumbnail = modal.querySelector(".video-thumbnail");
+  const title = modal.querySelector(".video-title");
+  const author = modal.querySelector(".video-author");
+  const duration = modal.querySelector(".video-duration");
+
+  if (videoInfo.thumbnail) {
+    thumbnail.src = videoInfo.thumbnail;
+    thumbnail.style.display = "block";
+  } else {
+    thumbnail.style.display = "none";
+  }
+
+  title.textContent = videoInfo.title || "Twitter Video";
+  author.textContent = videoInfo.uploader || "Unknown";
+  duration.textContent = videoInfo.duration
+    ? `${videoInfo.duration}s`
+    : "Unknown duration";
+
+  // Populate quality options
+  const qualityList = modal.querySelector(".quality-list");
+  const startDownloadBtn = modal.querySelector(".start-download");
+
+  let selectedFormat = null;
+
+  qualityList.innerHTML = "";
+
+  videoInfo.formats.forEach((format, index) => {
+    const qualityItem = document.createElement("div");
+    qualityItem.className = "quality-item";
+    qualityItem.dataset.formatId = format.format_id;
+
+    qualityItem.innerHTML = `
+      <div class="quality-main">
+        <div class="quality-label">${formatQualityLabel(format)}</div>
+        <div class="quality-details">
+          ${format.ext?.toUpperCase() || "MP4"} • ${
+      format.tbr ? format.tbr + " kbps" : "Unknown bitrate"
+    }
+        </div>
+      </div>
+      <div class="quality-size">${formatFileSize(format.filesize)}</div>
+    `;
+
+    qualityItem.addEventListener("click", () => {
+      // Remove previous selection
+      qualityList.querySelectorAll(".quality-item").forEach((item) => {
+        item.classList.remove("selected");
+      });
+
+      // Select this item
+      qualityItem.classList.add("selected");
+      selectedFormat = format;
+      startDownloadBtn.disabled = false;
+    });
+
+    qualityList.appendChild(qualityItem);
+
+    // Auto-select first (highest quality) option
+    if (index === 0) {
+      qualityItem.click();
+    }
+  });
+
+  // Handle download start
+  startDownloadBtn.onclick = async () => {
+    if (!selectedFormat) return;
+
+    try {
+      await startVideoDownload(modal, videoInfo, selectedFormat, videoUrl);
+    } catch (error) {
+      console.error("Download error:", error);
+      showErrorInModal(modal, "Download failed. Please try again.");
+    }
+  };
+}
+
+async function startVideoDownload(modal, videoInfo, selectedFormat, videoUrl) {
+  const qualitySelection = modal.querySelector(".quality-selection");
+  const downloadProgress = modal.querySelector(".download-progress");
+
+  // Show progress view
+  qualitySelection.style.display = "none";
+  downloadProgress.style.display = "block";
+
+  try {
+    // Check if we have a direct video URL
+    if (selectedFormat.url) {
+      // Use browser's built-in download via chrome.downloads API
+      const response = await chrome.runtime.sendMessage({
+        action: "downloadFile",
+        url: selectedFormat.url,
+        filename: generateVideoFilename(videoInfo, selectedFormat),
+      });
+
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+
+      if (response.success) {
+        showDownloadComplete(modal, videoInfo, selectedFormat, {
+          filename: response.filename,
+          downloadId: response.downloadId,
+        });
+      } else {
+        throw new Error(response.message || "Failed to start download");
+      }
+    } else {
+      // Fallback to server-side download (old method)
+      const twitterUrl = videoUrl.replace("x.com", "twitter.com");
+      const response = await chrome.runtime.sendMessage({
+        action: "downloadVideo",
+        videoUrl: twitterUrl,
+        formatId: selectedFormat.format_id,
+      });
+
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+
+      if (response.success && response.progress_id) {
+        monitorDownloadProgress(
+          modal,
+          response.progress_id,
+          videoInfo,
+          selectedFormat
+        );
+      } else {
+        throw new Error(response.message || "Failed to start download");
+      }
+    }
+  } catch (error) {
+    console.error("Download start error:", error);
+    showErrorInModal(modal, error.message || "Failed to start download");
+  }
+}
+
+function generateVideoFilename(videoInfo, selectedFormat) {
+  // Clean the title for use as filename
+  const cleanTitle = (videoInfo.title || "twitter_video")
+    .replace(/[<>:"/\\|?*]/g, "_") // Replace invalid characters
+    .substring(0, 100); // Limit length
+
+  const resolution = selectedFormat.resolution || "unknown";
+  const ext = selectedFormat.ext || "mp4";
+
+  return `${cleanTitle}_${resolution}.${ext}`;
+}
+
+async function monitorDownloadProgress(
+  modal,
+  progressId,
+  videoInfo,
+  selectedFormat
+) {
+  const progressFill = modal.querySelector(".progress-fill");
+  const progressPercent = modal.querySelector(".progress-percent");
+  const progressSpeed = modal.querySelector(".progress-speed");
+  const progressEta = modal.querySelector(".progress-eta");
+
+  const checkProgress = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: "getDownloadProgress",
+        progressId: progressId,
+      });
+
+      if (chrome.runtime.lastError) {
+        throw new Error(chrome.runtime.lastError.message);
+      }
+
+      // Update progress UI
+      const percent = response.percent || "0%";
+      const numericPercent = parseInt(percent.replace("%", ""));
+
+      progressFill.style.width = percent;
+      progressPercent.textContent = percent;
+      progressSpeed.textContent = response.speed || "";
+      progressEta.textContent = response.eta || "";
+
+      // Check status
+      if (response.status === "completed" || response.status === "finished") {
+        showDownloadComplete(modal, videoInfo, selectedFormat, response.result);
+      } else if (response.status === "error") {
+        showErrorInModal(modal, response.message || "Download failed");
+      } else {
+        // Continue monitoring
+        setTimeout(checkProgress, 1000);
+      }
+    } catch (error) {
+      console.error("Progress monitoring error:", error);
+      showErrorInModal(modal, "Failed to monitor download progress");
+    }
+  };
+
+  // Start monitoring
+  checkProgress();
+}
+
+function showDownloadComplete(
+  modal,
+  videoInfo,
+  selectedFormat,
+  downloadResult
+) {
+  const downloadProgress = modal.querySelector(".download-progress");
+  const downloadComplete = modal.querySelector(".download-complete");
+  const downloadedFilename = modal.querySelector(".downloaded-filename");
+  const downloadFileBtn = modal.querySelector(".download-file-btn");
+
+  downloadProgress.style.display = "none";
+  downloadComplete.style.display = "block";
+
+  const filename =
+    downloadResult?.filename ||
+    `${videoInfo.title || "twitter_video"}.${selectedFormat.ext || "mp4"}`;
+  downloadedFilename.textContent = filename;
+
+  downloadFileBtn.onclick = () => {
+    if (downloadResult?.filepath) {
+      // Create download link for the actual file
+      const downloadUrl = `${
+        VIDEO_DOWNLOAD_SERVICE_URL || "http://localhost:8080"
+      }/download_file/${encodeURIComponent(filename)}`;
+
+      // Open download in new tab
+      window.open(downloadUrl, "_blank");
+      showContentScriptToast("Download started!", "success", 3000);
+    } else {
+      showContentScriptToast("Download file not available", "error", 3000);
+    }
+  };
+}
+
+function showErrorInModal(modal, errorMessage) {
+  const loadingState = modal.querySelector(".loading-state");
+  const qualitySelection = modal.querySelector(".quality-selection");
+  const downloadProgress = modal.querySelector(".download-progress");
+  const errorState = modal.querySelector(".error-state");
+  const errorMessageEl = modal.querySelector(".error-message");
+  const retryBtn = modal.querySelector(".retry-download");
+
+  // Hide all other states
+  loadingState.style.display = "none";
+  qualitySelection.style.display = "none";
+  downloadProgress.style.display = "none";
+
+  // Show error state
+  errorState.style.display = "block";
+  errorMessageEl.textContent = errorMessage;
+
+  retryBtn.onclick = () => {
+    modal.style.display = "none";
+    document.body.removeChild(modal);
+  };
+}

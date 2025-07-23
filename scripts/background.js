@@ -823,6 +823,114 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true; // Async response
   }
+
+  // Video download handlers
+  if (request.action === "getVideoInfo") {
+    (async () => {
+      try {
+        const response = await fetch(
+          "https://web-production-5536a.up.railway.app/video_info",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: request.videoUrl,
+            }),
+          }
+        );
+
+        const data = await response.json();
+        sendResponse(data);
+      } catch (error) {
+        console.error("Background: Error getting video info:", error);
+        sendResponse({
+          success: false,
+          error: "Failed to get video information",
+          message: error.message,
+        });
+      }
+    })();
+    return true; // Async response
+  }
+
+  if (request.action === "downloadVideo") {
+    (async () => {
+      try {
+        const response = await fetch(
+          "https://web-production-5536a.up.railway.app/download",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: request.videoUrl,
+              format_id: request.formatId,
+            }),
+          }
+        );
+
+        const data = await response.json();
+        sendResponse(data);
+      } catch (error) {
+        console.error("Background: Error starting download:", error);
+        sendResponse({
+          success: false,
+          error: "Failed to start download",
+          message: error.message,
+        });
+      }
+    })();
+    return true; // Async response
+  }
+
+  if (request.action === "getDownloadProgress") {
+    (async () => {
+      try {
+        const response = await fetch(
+          `https://web-production-5536a.up.railway.app/progress/${request.progressId}`
+        );
+        const data = await response.json();
+        sendResponse(data);
+      } catch (error) {
+        console.error("Background: Error getting download progress:", error);
+        sendResponse({
+          status: "error",
+          message: "Failed to get download progress",
+        });
+      }
+    })();
+    return true; // Async response
+  }
+
+  // Direct file download handler
+  if (request.action === "downloadFile") {
+    (async () => {
+      try {
+        const downloadId = await chrome.downloads.download({
+          url: request.url,
+          filename: request.filename,
+          saveAs: false, // Don't show save dialog
+        });
+
+        sendResponse({
+          success: true,
+          downloadId: downloadId,
+          filename: request.filename,
+        });
+      } catch (error) {
+        console.error("Background: Error starting file download:", error);
+        sendResponse({
+          success: false,
+          error: "Failed to start download",
+          message: error.message,
+        });
+      }
+    })();
+    return true; // Async response
+  }
 });
 
 // Function to parse suggestions
@@ -1044,9 +1152,3 @@ async function getValidAccessToken() {
     return accessToken;
   }
 }
-
-// Remove or comment out these logs
-// console.log("Background script loaded and Twitter OAuth handler ready.");
-// console.log("Background: Loaded English messages for API prompts.");
-// console.log("Background: Existing access token is valid.");
-// console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] User info retrieved from storage:", ...);

@@ -816,3 +816,388 @@ function displaySuggestions(suggestions, container) {
     )}</div>`;
   }
 }
+
+function createVideoDownloadModal() {
+  const modal = document.createElement("div");
+  modal.id = VIDEO_DOWNLOAD_MODAL_ID;
+  modal.className = `${EXT_NAMESPACE}-download-modal`;
+
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Download Video</h3>
+          <button class="close-modal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Analyzing video qualities...</p>
+          </div>
+          <div class="quality-selection" style="display: none;">
+            <div class="video-info">
+              <img class="video-thumbnail" src="" alt="Video thumbnail">
+              <div class="video-details">
+                <h4 class="video-title"></h4>
+                <p class="video-author"></p>
+                <p class="video-duration"></p>
+              </div>
+            </div>
+            <div class="quality-options">
+              <h4>Select Quality:</h4>
+              <div class="quality-list"></div>
+            </div>
+            <div class="download-actions">
+              <button class="cancel-download">Cancel</button>
+              <button class="start-download" disabled>Download</button>
+            </div>
+          </div>
+          <div class="download-progress" style="display: none;">
+            <div class="progress-info">
+              <h4>Downloading...</h4>
+              <div class="progress-bar">
+                <div class="progress-fill"></div>
+              </div>
+              <div class="progress-details">
+                <span class="progress-percent">0%</span>
+                <span class="progress-speed"></span>
+                <span class="progress-eta"></span>
+              </div>
+            </div>
+          </div>
+          <div class="download-complete" style="display: none;">
+            <div class="success-icon">✅</div>
+            <h4>Download Complete!</h4>
+            <p class="downloaded-filename"></p>
+            <button class="download-file-btn">Download File</button>
+          </div>
+          <div class="error-state" style="display: none;">
+            <div class="error-icon">❌</div>
+            <h4>Download Failed</h4>
+            <p class="error-message"></p>
+            <button class="retry-download">Try Again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Apply styles
+  Object.assign(modal.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "100%",
+    height: "100%",
+    zIndex: "999999",
+    display: "none",
+  });
+
+  // Add CSS styles
+  const style = document.createElement("style");
+  style.textContent = `
+    .${EXT_NAMESPACE}-download-modal .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .modal-content {
+      background: var(--background-color, #ffffff);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow: hidden;
+      animation: slideUp 0.3s ease;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .modal-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-color, #e1e8ed);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .modal-header h3 {
+      margin: 0;
+      color: var(--text-color, #14171a);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-color, #14171a);
+      padding: 4px;
+      border-radius: 50%;
+      transition: background 0.2s;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .close-modal:hover {
+      background: var(--hover-bg, #f7f9fa);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .modal-body {
+      padding: 24px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .loading-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color, #e1e8ed);
+      border-top: 3px solid var(--primary-color, #1da1f2);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .video-info {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px;
+      background: var(--secondary-bg, #f7f9fa);
+      border-radius: 12px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .video-thumbnail {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .video-details h4 {
+      margin: 0 0 8px 0;
+      color: var(--text-color, #14171a);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .video-details p {
+      margin: 4px 0;
+      color: var(--secondary-text, #657786);
+      font-size: 14px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-options h4 {
+      margin: 0 0 16px 0;
+      color: var(--text-color, #14171a);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 2px solid var(--border-color, #e1e8ed);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-item:hover {
+      border-color: var(--primary-color, #1da1f2);
+      background: var(--hover-bg, #f7f9fa);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-item.selected {
+      border-color: var(--primary-color, #1da1f2);
+      background: rgba(29, 161, 242, 0.1);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-main {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-label {
+      font-weight: 600;
+      color: var(--text-color, #14171a);
+      margin-bottom: 4px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-details {
+      font-size: 12px;
+      color: var(--secondary-text, #657786);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .quality-size {
+      font-size: 12px;
+      color: var(--secondary-text, #657786);
+      font-weight: 500;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color, #e1e8ed);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-actions button {
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .cancel-download {
+      background: var(--secondary-bg, #f7f9fa);
+      color: var(--text-color, #14171a);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .cancel-download:hover {
+      background: var(--border-color, #e1e8ed);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .start-download {
+      background: var(--primary-color, #1da1f2);
+      color: white;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .start-download:hover:not(:disabled) {
+      background: #1991db;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .start-download:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--border-color, #e1e8ed);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .progress-fill {
+      height: 100%;
+      background: var(--primary-color, #1da1f2);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .progress-details {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      color: var(--secondary-text, #657786);
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-complete,
+    .${EXT_NAMESPACE}-download-modal .error-state {
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .success-icon,
+    .${EXT_NAMESPACE}-download-modal .error-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .${EXT_NAMESPACE}-download-modal .download-file-btn,
+    .${EXT_NAMESPACE}-download-modal .retry-download {
+      background: var(--primary-color, #1da1f2);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `;
+
+  if (!document.getElementById(`${EXT_NAMESPACE}-download-modal-styles`)) {
+    style.id = `${EXT_NAMESPACE}-download-modal-styles`;
+    document.head.appendChild(style);
+  }
+
+  // Add event listeners
+  const closeModal = modal.querySelector(".close-modal");
+  const cancelDownload = modal.querySelector(".cancel-download");
+  const modalOverlay = modal.querySelector(".modal-overlay");
+
+  const closeModalHandler = () => {
+    modal.style.display = "none";
+    document.body.removeChild(modal);
+  };
+
+  closeModal.addEventListener("click", closeModalHandler);
+  cancelDownload.addEventListener("click", closeModalHandler);
+
+  // Close on overlay click (but not modal content)
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) {
+      closeModalHandler();
+    }
+  });
+
+  return modal;
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "Unknown size";
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+}
+
+function formatQualityLabel(format) {
+  const resolution = format.resolution || `${format.width}x${format.height}`;
+  const quality = format.quality || "Unknown";
+  const fps = format.fps ? ` ${format.fps}fps` : "";
+
+  return `${resolution}${fps} - ${quality}`;
+}

@@ -22,7 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
           { [AI_PROVIDER_KEY]: event.target.value },
           () => {
             // Remove this log
-            // console.log("AI Provider preference saved:", event.target.value);
           }
         );
       }
