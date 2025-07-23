@@ -8,15 +8,6 @@ A sophisticated browser extension that enhances the Twitter/X experience by prov
 
 **🦊 Firefox Add-ons:** **[Install Magic Tweet](https://addons.mozilla.org/en-US/firefox/addon/magic-tweet/)**
 
-## 🎬 Quick Start: Download Videos & GIFs
-
-1. **🔍 Browse Twitter/X** - Videos and GIFs will automatically show a download icon
-2. **📥 Click Download** - A modal opens with quality options and video preview
-3. **🎯 Select Quality** - Choose your preferred resolution and format
-4. **⚡ Download** - File downloads directly to your browser's download folder
-
-_Works on both twitter.com and x.com - no additional setup required!_
-
 ## Overview
 
 Magic Tweet seamlessly integrates with Twitter/X to offer intelligent content suggestions and stylistic paraphrasing. The extension leverages advanced AI language models to help users craft more engaging and diverse tweets.
