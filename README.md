@@ -8,14 +8,25 @@ A sophisticated browser extension that enhances the Twitter/X experience by prov
 
 **🦊 Firefox Add-ons:** **[Install Magic Tweet](https://addons.mozilla.org/en-US/firefox/addon/magic-tweet/)**
 
+## 🎬 Quick Start: Download Videos & GIFs
+
+1. **🔍 Browse Twitter/X** - Videos and GIFs will automatically show a download icon
+2. **📥 Click Download** - A modal opens with quality options and video preview
+3. **🎯 Select Quality** - Choose your preferred resolution and format
+4. **⚡ Download** - File downloads directly to your browser's download folder
+
+_Works on both twitter.com and x.com - no additional setup required!_
+
 ## Overview
 
 Magic Tweet seamlessly integrates with Twitter/X to offer intelligent content suggestions and stylistic paraphrasing. The extension leverages advanced AI language models to help users craft more engaging and diverse tweets.
 
 ## ✨ Key Features
 
-- **🤖 AI-Powered Paraphrasing**: Transform your tweets using OpenAI GPT and X.AI Grok models
-- **🎭 Multiple Stylistic Tones**:
+### 🤖 **AI-Powered Content Enhancement**
+
+- **🎭 AI Paraphrasing**: Transform your tweets using OpenAI GPT and X.AI Grok models
+- **🎨 Multiple Stylistic Tones**:
   - 💼 Professional
   - 😊 Casual & Playful
   - 😂 Humorous & Sarcastic
@@ -23,20 +34,34 @@ Magic Tweet seamlessly integrates with Twitter/X to offer intelligent content su
   - 🎭 Poetic & Theatrical
   - 🌟 Uplifting & Inspirational
   - 🔥 Roast & Dark Humor
+
+### 🎬 **Video & Media Downloads** _(New Feature)_
+
+- **📥 Smart Video Detection**: Automatically detects videos and GIFs on Twitter/X timeline
+- **⚡ Quick Download**: One-click download with quality selection modal
+- **🎯 Quality Options**: Choose from multiple video qualities and formats
+- **📱 Universal Support**: Works with both x.com and twitter.com URLs
+- **🖼️ Preview Thumbnails**: See video preview before downloading
+- **💾 Direct Downloads**: Files download directly to your browser's download folder
+
+### 🔧 **Technical Features**
+
 - **🔗 Seamless Integration**: Direct integration with Twitter/X interface
 - **🌙 Adaptive UI**: Supports both light and dark themes
 - **🌍 Internationalization**: Multi-language support (English/Persian)
 - **🔒 Secure Authentication**: Twitter OAuth 2.0 with PKCE
-- **☁️ Cloud Infrastructure**: AWS Lambda backend with DynamoDB
+- **☁️ Cloud Infrastructure**: AWS Lambda + Railway backend
 - **🚀 Cross-Browser Support**: Works on Chrome and Firefox
 
 ## 🏗️ Technical Architecture
 
 - **🌐 Frontend**: Cross-browser Extension (Manifest V3)
-- **⚡ Backend**: AWS Lambda (Node.js)
+- **⚡ AI Backend**: AWS Lambda (Node.js) for tweet enhancement
+- **🎬 Video Backend**: Railway-hosted Python API with yt-dlp integration
 - **💾 Database**: Amazon DynamoDB
 - **🔐 Security**: Twitter OAuth 2.0 with PKCE for secure authentication
 - **🧠 AI Integration**: OpenAI GPT and X.AI Grok APIs
+- **📥 Video Processing**: yt-dlp for high-quality video extraction
 - **🔧 Package Manager**: pnpm for faster builds
 
 ## 🚀 Installation
@@ -140,6 +165,7 @@ For detailed information about data handling and privacy, please refer to [PRIVA
 
 ## 📈 Version History
 
+- **v1.0.6** - Added video & GIF download feature with quality selection
 - **v1.0.5** - Firefox compatibility, improved login UI, cross-browser support
 - **v1.0.0** - Initial Chrome release with AI-powered tweet suggestions
 
