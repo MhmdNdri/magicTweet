@@ -2081,7 +2081,9 @@ function showQualitySelection(modal, videoInfo, videoUrl) {
     }
         </div>
       </div>
-      <div class="quality-size">${formatFileSize(format.filesize)}</div>
+      <div class="quality-size">${formatFileSize(
+        format.filesize || format.filesize_approx
+      )}</div>
     `;
 
     qualityItem.addEventListener("click", () => {
