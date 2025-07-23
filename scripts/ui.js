@@ -1188,10 +1188,11 @@ function createVideoDownloadModal() {
 }
 
 function formatFileSize(bytes) {
-  if (!bytes) return "Unknown size";
+  if (!bytes || bytes <= 0) return "Unknown size";
   const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
+  const formattedSize = Math.round((bytes / Math.pow(1024, i)) * 100) / 100;
+  return formattedSize + " " + sizes[i];
 }
 
 function formatQualityLabel(format) {
