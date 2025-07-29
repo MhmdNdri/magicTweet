@@ -1,3 +1,18 @@
+/**
+ * Magic Tweet Extension - Twitter Authentication Handler
+ * AWS Lambda Function for handling Twitter OAuth, AI suggestions, and video downloads
+ * 
+ * Features:
+ * - Twitter OAuth 2.0 with PKCE authentication
+ * - AI-powered tweet suggestions (OpenAI, XAI, Gemini)
+ * - Video download service integration
+ * - Rate limiting and caching
+ * - User management with DynamoDB
+ * 
+ * Version: v2.1.0_CORS_FIX_PRODUCTION
+ * Author: MhmdNdri
+ */
+
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const {
   DynamoDBDocumentClient,
@@ -10,7 +25,7 @@ const { TwitterApi } = require("twitter-api-v2");
 const https = require("https");
 const http = require("http");
 
-const LAMBDA_CODE_VERSION = "v2.0.10_RATE_LIMIT_FIX_REVIEWED";
+const LAMBDA_CODE_VERSION = "v2.1.0_CORS_FIX_PRODUCTION";
 
 const region = process.env.AWS_REGION || "eu-west-2";
 const ddbClient = new DynamoDBClient({ region });
@@ -324,18 +339,13 @@ async function getTwitterAppClientCredentials() {
     });
     const { Parameters, InvalidParameters } = await ssmClient.send(command);
 
-    console.log(
-      "SSM GetParameters response received. Parameters:",
-      JSON.stringify(Parameters, null, 2),
-      "InvalidParameters:",
-      JSON.stringify(InvalidParameters, null, 2)
-    );
+    console.log(`Successfully fetched ${Parameters?.length || 0} SSM parameters for Twitter credentials`);
 
     if (InvalidParameters && InvalidParameters.length > 0) {
       console.error(
-        `Could not find the following SSM parameters (InvalidParameters): ${InvalidParameters.join(
+        `Could not find the following SSM parameters: ${InvalidParameters.join(
           ", "
-        )}. Searched for: ${TWITTER_API_KEY_SSM_NAME}, ${TWITTER_API_SECRET_SSM_NAME}`
+        )}. Expected: ${TWITTER_API_KEY_SSM_NAME}, ${TWITTER_API_SECRET_SSM_NAME}`
       );
       throw new Error(
         `Could not find SSM parameters: ${InvalidParameters.join(", ")}`
@@ -357,10 +367,7 @@ async function getTwitterAppClientCredentials() {
     );
 
     console.log(
-      "Attempting to find parameters in response. apiKeyParam found:",
-      !!apiKeyParam,
-      "apiSecretParam found:",
-      !!apiSecretParam
+      `Twitter credentials validation: API Key found: ${!!apiKeyParam}, API Secret found: ${!!apiSecretParam}`
     );
 
     if (!apiKeyParam || !apiSecretParam) {
@@ -368,10 +375,7 @@ async function getTwitterAppClientCredentials() {
       if (!apiKeyParam) missingParams.push(TWITTER_API_KEY_SSM_NAME);
       if (!apiSecretParam) missingParams.push(TWITTER_API_SECRET_SSM_NAME);
       console.error(
-        `Twitter API Key or Secret not found in returned SSM Parameters. Missing: ${missingParams.join(
-          ", "
-        )}. All parameters returned:`,
-        JSON.stringify(Parameters, null, 2)
+        `Twitter API credentials missing from SSM. Missing parameters: ${missingParams.join(", ")}`
       );
       throw new Error("Twitter API Key or Secret not found in SSM parameters.");
     }
@@ -825,7 +829,41 @@ async function performAiSuggestionRequest(
 
 exports.handler = async (event) => {
   console.log(`Executing Lambda version: ${LAMBDA_CODE_VERSION}`);
-  console.log("Event received:", JSON.stringify(event, null, 2));
+  console.log(`Processing ${event.requestContext?.http?.method || 'UNKNOWN'} request for action: ${JSON.parse(event.body || '{}').action || 'UNKNOWN'}`);
+
+  const origin = event.headers?.origin || event.headers?.Origin;
+
+  const allowedOrigins = [
+    "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+    "chrome-extension://llmcceanlbdpnidpdmjgfbgmhhnkjlmh",
+    "moz-extension://16d635c5-456a-456b-833a-75e4d2b2748a",
+    // Add any other production extension IDs here
+  ];
+
+  const corsHeaders = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Api-Key, X-Action",
+    "Access-Control-Max-Age": "86400", // 24 hours
+  };
+
+  // Secure CORS: Only allow requests from approved extension origins
+  if (origin && allowedOrigins.includes(origin)) {
+    corsHeaders["Access-Control-Allow-Origin"] = origin;
+  } else if (origin) {
+    console.warn(`Unauthorized origin attempted access: ${origin}`);
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ 
+        message: "Access denied: Origin not authorized" 
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+  } else {
+    // No origin header - likely a direct API call, allow for server-to-server communication
+    corsHeaders["Access-Control-Allow-Origin"] = "*";
+  }
 
   if (
     event.requestContext &&
@@ -833,14 +871,9 @@ exports.handler = async (event) => {
     event.requestContext.http.method === "OPTIONS"
   ) {
     return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin":
-          "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Api-Key, X-Action",
-        "Access-Control-Max-Age": "86400",
-      },
+      statusCode: 204, // No Content for OPTIONS
+      headers: corsHeaders,
+      body: "", // Empty body for OPTIONS
     };
   }
 
@@ -855,8 +888,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ message: "Invalid request body. Expected JSON." }),
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin":
-          "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        ...corsHeaders,
       },
     };
   }
@@ -880,8 +912,7 @@ exports.handler = async (event) => {
             message: "Missing tokenToRevoke for logout action",
           }),
           headers: {
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -890,8 +921,7 @@ exports.handler = async (event) => {
         statusCode: 200,
         body: JSON.stringify(revocationResult),
         headers: {
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "login") {
@@ -903,8 +933,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -920,8 +949,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -993,8 +1021,7 @@ exports.handler = async (event) => {
         }),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "refreshToken") {
@@ -1006,8 +1033,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1020,8 +1046,7 @@ exports.handler = async (event) => {
         }),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "generateAiSuggestions") {
@@ -1033,8 +1058,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1047,8 +1071,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1088,8 +1111,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1127,8 +1149,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1161,8 +1182,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1213,8 +1233,7 @@ exports.handler = async (event) => {
         }),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "getVideoInfo") {
@@ -1228,8 +1247,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1241,8 +1259,7 @@ exports.handler = async (event) => {
         body: JSON.stringify(videoInfo),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "downloadVideo") {
@@ -1256,8 +1273,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1269,8 +1285,7 @@ exports.handler = async (event) => {
         body: JSON.stringify(downloadResult),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else if (action === "getDownloadProgress") {
@@ -1285,8 +1300,7 @@ exports.handler = async (event) => {
           }),
           headers: {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin":
-              "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+            ...corsHeaders,
           },
         };
       }
@@ -1298,8 +1312,7 @@ exports.handler = async (event) => {
         body: JSON.stringify(progressResult),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     } else {
@@ -1307,8 +1320,7 @@ exports.handler = async (event) => {
         statusCode: 400,
         body: JSON.stringify({ message: `Unknown action: ${action}` }),
         headers: {
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     }
@@ -1367,8 +1379,7 @@ exports.handler = async (event) => {
         }),
         headers: {
           "Content-Type": "application/json",
-          "Access-Control-Allow-Origin":
-            "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+          ...corsHeaders,
         },
       };
     }
@@ -1378,8 +1389,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({ message }),
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin":
-          "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
+        ...corsHeaders,
       },
     };
   }
