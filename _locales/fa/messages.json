@@ -261,6 +261,10 @@
     "message": "پیشنهادات باقی‌مانده",
     "description": "برچسب آمار پیشنهادات باقی‌مانده در کارت پروفایل کاربر."
   },
+  "videoDownloadsRemaining": {
+    "message": "دانلود ویدیو باقی‌مانده",
+    "description": "برچسب آمار دانلودهای ویدیو باقی‌مانده در کارت پروفایل کاربر."
+  },
   "roastSuggestions": {
     "message": "پیشنهادات مسخره کردن",
     "description": "Title for roast suggestions section"

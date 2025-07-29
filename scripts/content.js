@@ -729,7 +729,6 @@ async function initTheme() {
 
 // Function to find tweet composer
 function findTweetComposer() {
-  // console.log("MagicTweet: findTweetComposer() CALLED."); // Can be very noisy, disable for now
   const selectors = [
     // Most specific: Direct tweet text areas
     { selector: '[data-testid="tweetTextarea_0"]', isInput: true },
@@ -850,7 +849,6 @@ function findTweetComposer() {
       }
     }
   }
-  // console.log("MagicTweet: findTweetComposer() FAILED to find composer."); // Disable for now
   return null;
 }
 
@@ -1197,7 +1195,6 @@ function scanForMediaElements() {
 
 // Function to remove all extension elements
 function removeExtensionElements() {
-  // REMOVED: console.log("MagicTweet: removeExtensionElements() CALLED.");
   const elements = [
     document.getElementById(ICON_ID),
     document.getElementById(SUGGESTION_PANEL_ID),
@@ -1217,17 +1214,14 @@ function removeExtensionElements() {
   document.removeEventListener("click", handleOutsideClick);
   // Clear polling interval if it exists
   if (window.MagicTweetExtension.pollingInterval) {
-    // REMOVED: console.log("MagicTweet: Clearing polling interval ID: ...");
     clearInterval(window.MagicTweetExtension.pollingInterval);
     window.MagicTweetExtension.pollingInterval = null;
   }
   // Disconnect observer
   if (window.MagicTweetExtension.observer) {
-    // REMOVED: console.log("MagicTweet: Disconnecting MutationObserver.");
     window.MagicTweetExtension.observer.disconnect();
   }
-  window.MagicTweetExtension.isInitialized = false; // Reset initialization flag
-  // REMOVED: console.log("MagicTweet: removeExtensionElements() COMPLETED. isInitialized: false.");
+  window.MagicTweetExtension.isInitialized = false;
 }
 
 // Helper function to ensure icon and panels are in the DOM
@@ -1552,7 +1546,6 @@ function displaySuggestions(suggestions, container) {
                 // button.style.opacity = "0.7"; // Remove opacity changes
               }, 2000);
 
-              // REMOVED: document.getElementById(SUGGESTION_PANEL_ID).style.display = "none";
             } catch (err) {
               console.error("Failed to copy text:", err);
               // Change background color and icon on failure
@@ -1625,7 +1618,6 @@ function debounce(func, wait) {
 
 // Initialize the content script
 async function initialize() {
-  // REMOVED: console.log(`MagicTweet: initialize() ENTRY. isInitialized: ${
   //   window.MagicTweetExtension.isInitialized
   // }, Icon DOM: ${!!document.getElementById(ICON_ID)}`);
 
@@ -1743,13 +1735,9 @@ async function initialize() {
       }
 
       const tweetCompose = findTweetComposer();
-      // REMOVED: console.log(`MagicTweet Observer: findTweetComposer result: ${
-      //   tweetCompose ? "Found" : "Not Found"
-      // }`);
 
       const icon = document.getElementById(ICON_ID);
       if (!tweetCompose && icon && icon.isConnected) {
-        // REMOVED: console.log("MagicTweet Observer: Composer GONE, icon exists. ...");
         removeExtensionElements();
         return;
       }
@@ -1779,7 +1767,6 @@ async function initialize() {
 
     const initialTweetCompose = findTweetComposer();
     if (initialTweetCompose) {
-      // REMOVED: console.log("MagicTweet initialize: Initial composer found, adding icon.");
       addIconToComposer(initialTweetCompose);
     }
 
@@ -1822,7 +1809,6 @@ async function initialize() {
   } catch (error) {
     handleExtensionError(error); // This already resets isInitialized and attempts re-init
   }
-  // REMOVED: console.log("MagicTweet: initialize() EXIT.");
 }
 
 // Listen for messages from the popup
@@ -1927,12 +1913,10 @@ function showContentScriptToast(message, type = "error", duration = 4000) {
 
 // --- SPA Navigation Handling (with debounce) ---
 const debouncedInitialize = debounce(() => {
-  // REMOVED: console.log("MagicTweet: Debounced initialize triggered by SPA navigation.");
   initialize();
 }, 300);
 
 function handleSPAnavigation() {
-  // REMOVED: console.log("MagicTweet: SPA navigation event detected.");
   debouncedInitialize();
 }
 
@@ -1967,23 +1951,62 @@ async function handleVideoDownload(mediaItem) {
   document.body.appendChild(modal);
   modal.style.display = "block";
 
+  // First check if user is authenticated
   try {
-    // Get video info from your backend
+    const authCheck = await chrome.runtime.sendMessage({
+      action: "checkAuthStatus",
+    });
+
+    if (chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError.message);
+    }
+
+    // If user is not authenticated, show sign-in modal immediately
+    if (!authCheck.isAuthenticated) {
+      showSignInModal(modal);
+      return;
+    }
+
+    // User is authenticated, proceed with video info
     const videoInfo = await getVideoInfo(videoUrl);
 
     if (!videoInfo.success) {
-      showErrorInModal(
-        modal,
-        videoInfo.message || videoInfo.error || "Failed to analyze video"
-      );
-      return;
+      // Handle specific error types
+      if (videoInfo.error === "missing_access_token") {
+        showSignInModal(modal);
+        return;
+      } else if (videoInfo.error === "download_limit_exceeded") {
+        const budgetInfo =
+          videoInfo.video_downloads_budget !== undefined
+            ? ` (${videoInfo.video_downloaded}/${videoInfo.video_downloads_budget} used)`
+            : "";
+        showErrorInModal(
+          modal,
+          `Video download limit reached${budgetInfo}. Your downloads will reset based on your plan.`
+        );
+        return;
+      } else {
+        showErrorInModal(
+          modal,
+          videoInfo.message || videoInfo.error || "Failed to analyze video"
+        );
+        return;
+      }
     }
 
     // Show quality selection
     showQualitySelection(modal, videoInfo, videoUrl);
   } catch (error) {
-    console.error("Error getting video info:", error);
-    showErrorInModal(modal, "Failed to analyze video. Please try again.");
+    console.error("Error in video download flow:", error);
+    if (
+      error.message &&
+      (error.message.includes("Authentication") ||
+        error.message.includes("not authenticated"))
+    ) {
+      showSignInModal(modal);
+    } else {
+      showErrorInModal(modal, "Failed to analyze video. Please try again.");
+    }
   }
 }
 
@@ -2128,6 +2151,20 @@ async function startVideoDownload(modal, videoInfo, selectedFormat, videoUrl) {
   downloadProgress.style.display = "block";
 
   try {
+    // Double-check authentication before starting download
+    const authCheck = await chrome.runtime.sendMessage({
+      action: "checkAuthStatus",
+    });
+
+    if (chrome.runtime.lastError) {
+      throw new Error(chrome.runtime.lastError.message);
+    }
+
+    if (!authCheck.isAuthenticated) {
+      showSignInModal(modal);
+      return;
+    }
+
     // Check if we have a direct video URL
     if (selectedFormat.url) {
       // Use browser's built-in download via chrome.downloads API
@@ -2170,12 +2207,36 @@ async function startVideoDownload(modal, videoInfo, selectedFormat, videoUrl) {
           selectedFormat
         );
       } else {
-        throw new Error(response.message || "Failed to start download");
+        // Handle specific error types
+        if (response.error === "missing_access_token") {
+          showSignInModal(modal);
+          return;
+        } else if (response.error === "download_limit_exceeded") {
+          const budgetInfo =
+            response.video_downloads_budget !== undefined
+              ? ` (${response.video_downloaded}/${response.video_downloads_budget} used)`
+              : "";
+          throw new Error(
+            `Video download limit reached${budgetInfo}. Your downloads will reset based on your plan.`
+          );
+        } else {
+          throw new Error(response.message || "Failed to start download");
+        }
       }
     }
   } catch (error) {
     console.error("Download start error:", error);
-    showErrorInModal(modal, error.message || "Failed to start download");
+    // Check if it's an authentication error
+    if (
+      error.message &&
+      (error.message.includes("Authentication") ||
+        error.message.includes("log in") ||
+        error.message.includes("access_token"))
+    ) {
+      showSignInModal(modal);
+    } else {
+      showErrorInModal(modal, error.message || "Failed to start download");
+    }
   }
 }
 
@@ -2266,41 +2327,161 @@ function showDownloadComplete(
     completeThumbnail.src = videoInfo.thumbnail;
   }
 
-  downloadFileBtn.onclick = () => {
+  downloadFileBtn.onclick = async () => {
     if (downloadResult?.filepath) {
-      // Create download link for the actual file
-      const downloadUrl = `${
-        VIDEO_DOWNLOAD_SERVICE_URL || "http://localhost:8080"
-      }/download_file/${encodeURIComponent(filename)}`;
+      try {
+        // Request file download through background script to maintain authentication
+        const response = await chrome.runtime.sendMessage({
+          action: "downloadVideoFile",
+          filename: filename,
+        });
 
-      // Open download in new tab
-      window.open(downloadUrl, "_blank");
-      showContentScriptToast("Download started!", "success", 3000);
+        if (chrome.runtime.lastError) {
+          throw new Error(chrome.runtime.lastError.message);
+        }
+
+        if (response && response.success) {
+          // Open the download URL if provided
+          if (response.downloadUrl) {
+            window.open(response.downloadUrl, "_blank");
+            showContentScriptToast("Download started!", "success", 3000);
+          } else {
+            showContentScriptToast("Download initiated!", "success", 3000);
+          }
+        } else {
+          throw new Error(response?.message || "Failed to initiate download");
+        }
+      } catch (error) {
+        console.error("Error initiating file download:", error);
+        showContentScriptToast(
+          "Download failed. Please try again.",
+          "error",
+          3000
+        );
+      }
     } else {
       showContentScriptToast("Download file not available", "error", 3000);
     }
   };
 }
 
+function showSignInModal(modal) {
+  // Get the modal body where content should be replaced
+  const modalBody = modal.querySelector(".modal-body");
+  if (!modalBody) return;
+
+  // Clear all existing content in modal body
+  modalBody.innerHTML = "";
+
+  // Create beautiful sign-in content
+  const signInContent = document.createElement("div");
+  signInContent.className = "signin-state";
+  signInContent.style.cssText = `
+    display: block;
+    text-align: center;
+    padding: 20px 20px;
+    background: linear-gradient(135deg, #1da1f2 0%, #0d8bd9 100%);
+    color: white;
+    border-radius: 12px;
+    margin: 0;
+  `;
+
+  signInContent.innerHTML = `
+    <div style="margin-bottom: 0px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <svg style="width: 48px; height: 48px; margin-bottom: 16px;" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+      </svg>
+      <h3 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 600;">Sign in Required</h3>
+      <p style="margin: 0 0 24px 0; font-size: 16px; opacity: 0.9; line-height: 1.5;">
+        Please sign in with Twitter/X to download videos and access features
+      </p>
+    </div>
+    
+    <button id="signInButton" style="
+      background: white;
+      color: #1da1f2;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" 
+       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'">
+      Sign in with Twitter/X
+    </button>
+    
+    <p style="margin: 0; font-size: 12px; opacity: 0.7;">
+      Secure authentication powered by Twitter OAuth 2.0
+    </p>
+  `;
+
+  // Replace modal body content with sign-in content
+  modalBody.appendChild(signInContent);
+
+  // Add click handler for sign-in button
+  const signInButton = signInContent.querySelector("#signInButton");
+  signInButton.addEventListener("click", () => {
+    // Show alert to open popup
+    showContentScriptToast(
+      "Please click the extension icon in your browser toolbar to sign in with Twitter",
+      "info",
+      5000
+    );
+
+    // Optional: Try to trigger extension popup programmatically
+    try {
+      chrome.runtime.sendMessage({ action: "openPopup" });
+    } catch (error) {
+      console.log("Could not trigger popup programmatically");
+    }
+  });
+}
+
 function showErrorInModal(modal, errorMessage) {
-  const loadingState = modal.querySelector(".loading-state");
-  const qualitySelection = modal.querySelector(".quality-selection");
-  const downloadProgress = modal.querySelector(".download-progress");
-  const errorState = modal.querySelector(".error-state");
-  const errorMessageEl = modal.querySelector(".error-message");
-  const retryBtn = modal.querySelector(".retry-download");
+  // Get the modal body where content should be replaced
+  const modalBody = modal.querySelector(".modal-body");
+  if (!modalBody) return;
 
-  // Hide all other states
-  loadingState.style.display = "none";
-  qualitySelection.style.display = "none";
-  downloadProgress.style.display = "none";
+  // Clear all existing content in modal body
+  modalBody.innerHTML = "";
 
-  // Show error state
-  errorState.style.display = "block";
-  errorMessageEl.textContent = errorMessage;
+  // Create error content
+  const errorContent = document.createElement("div");
+  errorContent.className = "error-state";
+  errorContent.style.cssText = `
+    display: block;
+    text-align: center;
+    padding: 40px 20px;
+  `;
 
-  retryBtn.onclick = () => {
+  errorContent.innerHTML = `
+    <div class="error-icon" style="font-size: 48px; margin-bottom: 16px;">❌</div>
+    <h4 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #e0245e;">Download Failed</h4>
+    <p class="error-message" style="margin: 0 0 24px 0; font-size: 14px; color: #657786; line-height: 1.5;">${errorMessage}</p>
+    <button class="retry-download" style="
+      background: #1da1f2;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 20px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.2s;
+    ">Try Again</button>
+  `;
+
+  // Replace modal body content with error content
+  modalBody.appendChild(errorContent);
+
+  // Add click handler for retry button
+  const retryBtn = errorContent.querySelector(".retry-download");
+  retryBtn.addEventListener("click", () => {
     modal.style.display = "none";
-    document.body.removeChild(modal);
-  };
+    modal.remove();
+  });
 }

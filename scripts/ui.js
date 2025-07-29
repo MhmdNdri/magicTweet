@@ -889,7 +889,7 @@ function createVideoDownloadModal() {
     </div>
   `;
 
-  // Apply styles
+  // Apply initial styles
   Object.assign(modal.style, {
     position: "fixed",
     top: "0",
@@ -900,7 +900,6 @@ function createVideoDownloadModal() {
     display: "none",
   });
 
-  // Add CSS styles with dark mode support
   const style = document.createElement("style");
   style.textContent = `
     .${EXT_NAMESPACE}-download-modal .modal-overlay {
@@ -1380,7 +1379,7 @@ function createVideoDownloadModal() {
 
   const closeModalHandler = () => {
     modal.style.display = "none";
-    document.body.removeChild(modal);
+    modal.remove();
   };
 
   closeModal.addEventListener("click", closeModalHandler);

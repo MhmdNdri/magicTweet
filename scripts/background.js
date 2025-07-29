@@ -185,7 +185,7 @@ async function handleOAuthResponse(
 
     // If backend call was successful, proceed to store tokens and user info from backend
     const expiresAt = Date.now() + expires_in * 1000;
-    const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget}
+    const userInfoFromBackend = backendResponseData.userData; // userData is {id_str, screen_name, name, profile_image_url_https, number_requests, is_paid, budget, video_downloads_budget, video_downloaded}
 
     // DETAILED LOGGING (NEW)
     console.log(
@@ -207,6 +207,8 @@ async function handleOAuthResponse(
         number_requests: userInfoFromBackend.number_requests,
         is_paid: userInfoFromBackend.is_paid,
         budget: userInfoFromBackend.budget,
+        video_downloads_budget: userInfoFromBackend.video_downloads_budget,
+        video_downloaded: userInfoFromBackend.video_downloaded,
       },
       // Store login attempt result for popup toast
       lastAuthAction: {
@@ -239,6 +241,8 @@ async function handleOAuthResponse(
         number_requests: userInfoFromBackend.number_requests,
         is_paid: userInfoFromBackend.is_paid,
         budget: userInfoFromBackend.budget,
+        video_downloads_budget: userInfoFromBackend.video_downloads_budget,
+        video_downloaded: userInfoFromBackend.video_downloaded,
       },
     });
   } catch (error) {
@@ -666,23 +670,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const accessToken = await getValidAccessToken(); // Use the new function
 
         if (accessToken) {
-          // If we have a valid token (meaning it's either fresh or was successfully refreshed),
-          // also fetch the user_info to send to the popup.
-          const storedData = await chrome.storage.local.get(
-            "twitter_user_info"
-          );
-          // The storedData.twitter_user_info should now contain all fields
+          // If we have a valid token, fetch fresh user data from Lambda
+          // This ensures we get the latest user info including video download fields
+          try {
+            console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] Fetching fresh user data from Lambda...");
+            
+            const lambdaResponse = await fetch(LAMBDA_ENDPOINT, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                action: "getUserInfo",
+                accessToken: accessToken,
+              }),
+            });
 
-          // DETAILED LOGGING (NEW)
-          console.log(
-            "[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] User info retrieved from storage:",
-            JSON.stringify(storedData.twitter_user_info, null, 2)
-          );
+            if (lambdaResponse.ok) {
+              const backendResponseData = await lambdaResponse.json();
+              const userInfoFromBackend = backendResponseData.userData;
+              
+              console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] Fresh user data from Lambda:", 
+                JSON.stringify(userInfoFromBackend, null, 2));
 
-          sendResponse({
-            isLoggedIn: true,
-            userInfo: storedData.twitter_user_info,
-          });
+              // Update local storage with fresh data
+              const userInfo = {
+                id: userInfoFromBackend.id_str,
+                username: userInfoFromBackend.screen_name,
+                name: userInfoFromBackend.name,
+                profile_image_url: userInfoFromBackend.profile_image_url_https,
+                number_requests: userInfoFromBackend.number_requests,
+                is_paid: userInfoFromBackend.is_paid,
+                budget: userInfoFromBackend.budget,
+                video_downloads_budget: userInfoFromBackend.video_downloads_budget,
+                video_downloaded: userInfoFromBackend.video_downloaded,
+              };
+
+              await chrome.storage.local.set({
+                twitter_user_info: userInfo,
+              });
+
+              console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] Updated storage with fresh user data");
+
+              sendResponse({
+                isLoggedIn: true,
+                userInfo: userInfo,
+              });
+            } else {
+              // Lambda call failed, fall back to cached data
+              console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] Lambda call failed, using cached data");
+              const storedData = await chrome.storage.local.get("twitter_user_info");
+              
+              sendResponse({
+                isLoggedIn: true,
+                userInfo: storedData.twitter_user_info,
+              });
+            }
+          } catch (fetchError) {
+            // Lambda fetch failed, fall back to cached data
+            console.log("[DEBUG Background CHECK_TWITTER_LOGIN_STATUS] Lambda fetch error, using cached data:", fetchError);
+            const storedData = await chrome.storage.local.get("twitter_user_info");
+            
+            sendResponse({
+              isLoggedIn: true,
+              userInfo: storedData.twitter_user_info,
+            });
+          }
         } else {
           // If accessToken is null, it means user is not logged in or refresh failed.
           // getValidAccessToken already handles clearing tokens and setting lastAuthAction if refresh failed.
@@ -828,15 +881,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getVideoInfo") {
     (async () => {
       try {
-        const response = await fetch(
-          "https://web-production-5536a.up.railway.app/video_info",
+        const accessToken = await getValidAccessToken();
+        
+        const response = await makeRateLimitedRequest(
+          "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              url: request.videoUrl,
+              action: "getVideoInfo",
+              accessToken: accessToken,
+              videoUrl: request.videoUrl,
             }),
           }
         );
@@ -858,21 +915,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "downloadVideo") {
     (async () => {
       try {
-        const response = await fetch(
-          "https://web-production-5536a.up.railway.app/download",
+        const accessToken = await getValidAccessToken();
+        
+        const response = await makeRateLimitedRequest(
+          "https://p2p3zyi369.execute-api.eu-west-2.amazonaws.com/",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              url: request.videoUrl,
-              format_id: request.formatId,
+              action: "downloadVideo",
+              accessToken: accessToken,
+              videoUrl: request.videoUrl,
+              formatId: request.formatId,
             }),
           }
         );
 
         const data = await response.json();
+        
+        // If the download was successful and includes updated budget info,
+        // update the stored user info
+        if (data.user_video_budget) {
+          try {
+            const storedData = await chrome.storage.local.get("twitter_user_info");
+            if (storedData.twitter_user_info) {
+              storedData.twitter_user_info.video_downloads_budget = data.user_video_budget.video_downloads_budget;
+              storedData.twitter_user_info.video_downloaded = data.user_video_budget.video_downloaded;
+              await chrome.storage.local.set({
+                twitter_user_info: storedData.twitter_user_info
+              });
+              console.log("Background: Updated stored user video budget info");
+            }
+          } catch (error) {
+            console.error("Background: Error updating stored user video budget info:", error);
+          }
+        }
+        
         sendResponse(data);
       } catch (error) {
         console.error("Background: Error starting download:", error);
@@ -931,6 +1011,69 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true; // Async response
   }
+
+  // Video file download handler - ensures authenticated access to downloaded video files
+  if (request.action === "downloadVideoFile") {
+    (async () => {
+      try {
+        // Check if user is authenticated (same pattern as video download handlers)
+        const accessToken = await getValidAccessToken();
+        if (!accessToken) {
+          sendResponse({
+            success: false,
+            error: "authentication_required",
+            message: "Please log in to download video files",
+          });
+          return;
+        }
+
+        // Create download URL for the video file
+        const downloadUrl = `${
+          "https://web-production-5536a.up.railway.app"
+        }/download_file/${encodeURIComponent(request.filename)}`;
+
+        sendResponse({
+          success: true,
+          downloadUrl: downloadUrl,
+          message: "Download URL generated successfully",
+        });
+      } catch (error) {
+        console.error("Background: Error generating video file download URL:", error);
+        sendResponse({
+          success: false,
+          error: "Failed to generate download URL",
+          message: error.message,
+        });
+      }
+    })();
+    return true; // Async response
+  }
+
+  // Handle opening popup request
+  if (request.action === "openPopup") {
+    try {
+      chrome.action.openPopup();
+      sendResponse({ success: true });
+    } catch (error) {
+      console.log("Background: Could not open popup programmatically:", error.message);
+      sendResponse({ success: false, message: "Please click the extension icon manually" });
+    }
+    return true;
+  }
+
+  // Handle checking authentication status
+  if (request.action === "checkAuthStatus") {
+    (async () => {
+      try {
+        const accessToken = await getValidAccessToken();
+        sendResponse({ isAuthenticated: !!accessToken });
+      } catch (error) {
+        console.error("Background: Error checking auth status:", error);
+        sendResponse({ isAuthenticated: false });
+      }
+    })();
+    return true; // Async response
+  }
 });
 
 // Function to parse suggestions
@@ -955,43 +1098,15 @@ function parseSuggestions(content, tone) {
 
   console.log("Extracted variations:", variations);
 
-  // Ensure we have exactly 4 variations
+  // Ensure we have exactly 5 variations
   while (variations.length < 5) {
     variations.push("");
   }
-  variations.splice(5); // Trim to 4 if more
-  variations.splice(5); // Trim to 5 if more (was 4, should be 5 as per prompt)
+  variations.splice(5); // Trim to 5 if more
 
   suggestions[tone] = variations;
   console.log("Final suggestions object:", suggestions);
   return suggestions;
-}
-
-// You might also want a function to get the stored token
-async function getTwitterAccessToken() {
-  const result = await chrome.storage.local.get([
-    "twitter_access_token",
-    "twitter_token_expires_at",
-    "twitter_refresh_token",
-    "twitter_user_info", // Also retrieve user_info here if needed for other functions
-  ]);
-  if (chrome.runtime.lastError) {
-    console.error("Error retrieving token:", chrome.runtime.lastError);
-    return null;
-  }
-
-  if (
-    result.twitter_access_token &&
-    result.twitter_token_expires_at > Date.now()
-  ) {
-    return result.twitter_access_token;
-  } else if (result.twitter_refresh_token) {
-    // Implement token refresh logic here if the access token is expired
-    console.log("Access token expired or missing, refresh needed.");
-    // return await refreshTwitterToken(result.twitter_refresh_token); // You'll need to implement this
-    return null; // For now, just indicate refresh is needed
-  }
-  return null;
 }
 
 // Helper function to clear all Twitter-related tokens and user info from storage

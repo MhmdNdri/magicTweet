@@ -2,14 +2,7 @@
  * Magic Tweet Extension - Twitter Authentication Handler
  * AWS Lambda Function for handling Twitter OAuth, AI suggestions, and video downloads
  * 
- * Features:
- * - Twitter OAuth 2.0 with PKCE authentication
- * - AI-powered tweet suggestions (OpenAI, XAI, Gemini)
- * - Video download service integration
- * - Rate limiting and caching
- * - User management with DynamoDB
- * 
- * Version: v2.1.0_CORS_FIX_PRODUCTION
+ * Version: v2.2.0_CLEAN
  * Author: MhmdNdri
  */
 
@@ -25,50 +18,93 @@ const { TwitterApi } = require("twitter-api-v2");
 const https = require("https");
 const http = require("http");
 
-const LAMBDA_CODE_VERSION = "v2.1.0_CORS_FIX_PRODUCTION";
+const LAMBDA_CODE_VERSION = "v2.2.0_CLEAN";
 
-const region = process.env.AWS_REGION || "eu-west-2";
-const ddbClient = new DynamoDBClient({ region });
-const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
-const ssmClient = new SSMClient({ region });
+// === CONFIGURATION ===
+const CONFIG = {
+  region: process.env.AWS_REGION || "eu-west-2",
+  tables: {
+    users: "Users"
+  },
+  ssm: {
+    twitterApiKey: "/my-extension/twitter/api-key",
+    twitterApiSecret: "/my-extension/twitter/api-key-secret",
+    openaiApiKey: "/my-extension/openai/api-key",
+    xaiApiKey: "/my-extension/xai/api-key",
+    geminiApiKey: "/my-extension/gemini/api-key"
+  },
+  limits: {
+    maxGenerationRequests: 150,
+    maxVideoDownloads: 50
+  },
+  urls: {
+    twitterToken: "https://api.twitter.com/2/oauth2/token",
+    openai: "https://api.openai.com/v1/chat/completions",
+    xai: "https://api.x.ai/v1/chat/completions",
+    videoService: process.env.VIDEO_DOWNLOAD_SERVICE_URL || "https://web-production-5536a.up.railway.app"
+  },
+  cache: {
+    duration: 5 * 60 * 1000, // 5 minutes
+    maxSize: 100
+  },
+  rateLimit: {
+    concurrentLimit: 3,
+    maxRetries: 3
+  }
+};
 
-const USERS_TABLE_NAME = "Users";
-const TWITTER_API_KEY_SSM_NAME = "/my-extension/twitter/api-key";
-const TWITTER_API_SECRET_SSM_NAME = "/my-extension/twitter/api-key-secret";
-const OPENAI_API_KEY_SSM_NAME = "/my-extension/openai/api-key";
-const XAI_API_KEY_SSM_NAME = "/my-extension/xai/api-key";
-const GEMINI_API_KEY_SSM_NAME = "/my-extension/gemini/api-key";
-
-const MAX_GENERATION_REQUESTS = 150;
-
-const TWITTER_TOKEN_ENDPOINT = "https://api.twitter.com/2/oauth2/token";
-const OPENAI_CHAT_COMPLETIONS_URL =
-  "https://api.openai.com/v1/chat/completions";
-const XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions";
-
-// Video Download Service Configuration
-const VIDEO_DOWNLOAD_SERVICE_URL =
-  process.env.VIDEO_DOWNLOAD_SERVICE_URL ||
-  "https://web-production-5536a.up.railway.app";
-
-// === RATE LIMITING VARIABLES ===
-// Cache for authenticated users to avoid repeated Twitter API calls
-const userAuthCache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+// === CONSTANTS ===
+const USERS_TABLE_NAME = CONFIG.tables.users;
+const MAX_GENERATION_REQUESTS = CONFIG.limits.maxGenerationRequests;
+const MAX_VIDEO_DOWNLOADS = CONFIG.limits.maxVideoDownloads;
+const TWITTER_TOKEN_ENDPOINT = CONFIG.urls.twitterToken;
+const OPENAI_CHAT_COMPLETIONS_URL = CONFIG.urls.openai;
+const XAI_CHAT_COMPLETIONS_URL = CONFIG.urls.xai;
+const CONCURRENT_LIMIT = CONFIG.rateLimit.concurrentLimit;
 const REQUEST_QUEUE = [];
-const CONCURRENT_LIMIT = 3; // Max concurrent Twitter API requests
-let activeRequests = 0;
 
-// Rate limiting state
+// === AWS CLIENTS ===
+const ddbClient = new DynamoDBClient({ region: CONFIG.region });
+const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
+const ssmClient = new SSMClient({ region: CONFIG.region });
+
+// === CACHE AND RATE LIMITING ===
+const userAuthCache = new Map();
+const requestQueue = [];
+let activeRequests = 0;
+let isProcessingQueue = false;
 let rateLimitResetTime = null;
-let rateLimitRemaining = null;
 let consecutiveErrors = 0;
+
+// === CACHED API KEYS ===
+let twitterAppClientCredentials = null;
+let openAiApiKey = null;
+let xAiApiKey = null;
+let geminiApiKey = null;
+
+// === UTILITY FUNCTIONS ===
+function calculateBackoffDelay(attempt) {
+  const baseDelay = 1000;
+  const maxDelay = 32000;
+  const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+  const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
+  return exponentialDelay + jitter;
+}
+
+async function waitForRateLimit() {
+  if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
+    const waitTime = rateLimitResetTime - Date.now() + 1000;
+    console.log(`Rate limit active. Waiting ${waitTime}ms before next request.`);
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
+  }
+}
 
 // === VIDEO DOWNLOAD UTILITIES ===
 async function callVideoDownloadService(endpoint, data) {
   return new Promise((resolve, reject) => {
-    const url = new URL(`${VIDEO_DOWNLOAD_SERVICE_URL}${endpoint}`);
+    const url = new URL(`${CONFIG.urls.videoService}${endpoint}`);
     const postData = JSON.stringify(data);
+    const protocol = url.protocol === "https:" ? https : http;
 
     const options = {
       hostname: url.hostname,
@@ -79,32 +115,22 @@ async function callVideoDownloadService(endpoint, data) {
         "Content-Type": "application/json",
         "Content-Length": Buffer.byteLength(postData),
       },
-      timeout: 30000, // 30 seconds timeout
+      timeout: 30000,
     };
-
-    const protocol = url.protocol === "https:" ? https : http;
 
     const req = protocol.request(options, (res) => {
       let responseBody = "";
-
-      res.on("data", (chunk) => {
-        responseBody += chunk;
-      });
-
+      res.on("data", (chunk) => responseBody += chunk);
       res.on("end", () => {
         try {
-          const parsedResponse = JSON.parse(responseBody);
-          resolve(parsedResponse);
+          resolve(JSON.parse(responseBody));
         } catch (parseError) {
           reject(new Error(`Failed to parse response: ${parseError.message}`));
         }
       });
     });
 
-    req.on("error", (error) => {
-      reject(new Error(`Request failed: ${error.message}`));
-    });
-
+    req.on("error", (error) => reject(new Error(`Request failed: ${error.message}`)));
     req.on("timeout", () => {
       req.destroy();
       reject(new Error("Request timeout"));
@@ -115,48 +141,29 @@ async function callVideoDownloadService(endpoint, data) {
   });
 }
 
-async function getVideoInfo(videoUrl) {
+const createVideoServiceFunction = (endpoint, logMessage) => async (videoUrl, formatId = null) => {
   try {
-    console.log(`Getting video info for: ${videoUrl}`);
-    const response = await callVideoDownloadService("/video_info", {
-      url: videoUrl,
-    });
-    return response;
+    console.log(`${logMessage}: ${videoUrl}${formatId ? `, format: ${formatId}` : ''}`);
+    const data = { url: videoUrl };
+    if (formatId) data.format_id = formatId;
+    
+    return await callVideoDownloadService(endpoint, data);
   } catch (error) {
-    console.error("Error getting video info:", error);
+    console.error(`Error in ${logMessage.toLowerCase()}:`, error);
     return {
       success: false,
       error: "Service unavailable",
       message: "Video download service is currently unavailable",
     };
   }
-}
+};
 
-async function downloadVideo(videoUrl, formatId) {
-  try {
-    console.log(`Starting download for: ${videoUrl}, format: ${formatId}`);
-    const response = await callVideoDownloadService("/download", {
-      url: videoUrl,
-      format_id: formatId,
-    });
-    return response;
-  } catch (error) {
-    console.error("Error starting download:", error);
-    return {
-      success: false,
-      error: "Service unavailable",
-      message: "Video download service is currently unavailable",
-    };
-  }
-}
+const getVideoInfo = createVideoServiceFunction("/video_info", "Getting video info");
+const downloadVideo = createVideoServiceFunction("/download", "Starting download");
 
 async function getDownloadProgress(progressId) {
   try {
-    const response = await callVideoDownloadService(
-      `/progress/${progressId}`,
-      {}
-    );
-    return response;
+    return await callVideoDownloadService(`/progress/${progressId}`, {});
   } catch (error) {
     console.error("Error getting download progress:", error);
     return {
@@ -164,17 +171,6 @@ async function getDownloadProgress(progressId) {
       message: "Could not get download progress",
     };
   }
-}
-
-// === EXPONENTIAL BACKOFF UTILITY ===
-function calculateBackoffDelay(attempt) {
-  // Base delay: 1 second, exponential backoff with jitter
-  const baseDelay = 1000;
-  const maxDelay = 32000; // 32 seconds max
-  const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-  // Add jitter (±25%)
-  const jitter = exponentialDelay * 0.25 * (Math.random() * 2 - 1);
-  return exponentialDelay + jitter;
 }
 
 // === RATE LIMIT AWARE DELAY ===
@@ -189,8 +185,6 @@ async function waitForRateLimit() {
 }
 
 // === REQUEST QUEUE PROCESSOR ===
-let isProcessingQueue = false;
-
 async function processRequestQueue() {
   if (isProcessingQueue) return; // Prevent concurrent processing
   isProcessingQueue = true;
@@ -231,19 +225,15 @@ function queueTwitterApiCall(fn, ...args) {
 
 // === CACHED USER AUTHENTICATION ===
 function getCachedUserAuth(accessToken) {
-  const tokenHash = accessToken.substring(0, 20); // Use partial token as key
+  const tokenHash = accessToken.substring(0, 20);
   const cached = userAuthCache.get(tokenHash);
 
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+  if (cached && Date.now() - cached.timestamp < CONFIG.cache.duration) {
     console.log("Using cached Twitter user authentication");
     return cached.userDetails;
   }
 
-  // Clean up expired entry if found
-  if (cached) {
-    userAuthCache.delete(tokenHash);
-  }
-
+  if (cached) userAuthCache.delete(tokenHash);
   return null;
 }
 
@@ -254,60 +244,35 @@ function setCachedUserAuth(accessToken, userDetails) {
     timestamp: Date.now(),
   });
 
-  // Clean up old cache entries (keep cache size manageable)
-  if (userAuthCache.size > 100) {
+  // Clean up old cache entries
+  if (userAuthCache.size > CONFIG.cache.maxSize) {
     const oldestKey = userAuthCache.keys().next().value;
     userAuthCache.delete(oldestKey);
   }
 }
 
-// === ENHANCED ERROR HANDLER ===
+// === ERROR HANDLING ===
 function handleTwitterApiError(error, context = "Twitter API call") {
   console.error(`${context} error:`, error);
 
-  // Extract status code from different error types
-  let statusCode = null;
-  if (error.code) {
-    statusCode = error.code;
-  } else if (error.status) {
-    statusCode = error.status;
-  } else if (error.response && error.response.status) {
-    statusCode = error.response.status;
-  }
+  const statusCode = error.code || error.status || error.response?.status || null;
 
   // Handle rate limiting
   if (statusCode === 429) {
     consecutiveErrors++;
 
-    // Try to extract rate limit reset time from headers
-    if (error.response && error.response.headers) {
-      const resetTime = error.response.headers["x-rate-limit-reset"];
-      if (resetTime) {
-        rateLimitResetTime = parseInt(resetTime) * 1000; // Convert to milliseconds
-        console.log(
-          `Rate limit reset time set to: ${new Date(rateLimitResetTime)}`
-        );
-      }
-
-      const remaining = error.response.headers["x-rate-limit-remaining"];
-      if (remaining !== undefined) {
-        rateLimitRemaining = parseInt(remaining);
-        console.log(`Rate limit remaining: ${rateLimitRemaining}`);
-      }
-    }
-
-    // If no reset time in headers, estimate based on consecutive errors
-    if (!rateLimitResetTime) {
+    // Extract rate limit reset time from headers
+    const resetTime = error.response?.headers?.["x-rate-limit-reset"];
+    if (resetTime) {
+      rateLimitResetTime = parseInt(resetTime) * 1000;
+      console.log(`Rate limit reset time set to: ${new Date(rateLimitResetTime)}`);
+    } else {
+      // Estimate based on consecutive errors
       const backoffDelay = calculateBackoffDelay(consecutiveErrors);
       rateLimitResetTime = Date.now() + backoffDelay;
-      console.log(
-        `Estimated rate limit reset time: ${new Date(
-          rateLimitResetTime
-        )} (${backoffDelay}ms)`
-      );
+      console.log(`Estimated rate limit reset time: ${new Date(rateLimitResetTime)} (${backoffDelay}ms)`);
     }
   } else {
-    // Reset consecutive errors on non-rate-limit errors
     consecutiveErrors = 0;
   }
 
@@ -319,66 +284,34 @@ function handleTwitterApiError(error, context = "Twitter API call") {
   };
 }
 
-let twitterAppClientCredentials = null;
-let openAiApiKey = null;
-let xAiApiKey = null;
-let geminiApiKey = null;
-
-// Function to get Twitter App Client ID and Secret from SSM
+// === SSM PARAMETER FUNCTIONS ===
 async function getTwitterAppClientCredentials() {
   if (twitterAppClientCredentials) {
     return twitterAppClientCredentials;
   }
   try {
-    console.log(
-      `Fetching Twitter App credentials from SSM. Names: ${TWITTER_API_KEY_SSM_NAME}, ${TWITTER_API_SECRET_SSM_NAME}`
-    );
+    console.log(`Fetching Twitter App credentials from SSM`);
     const command = new GetParametersCommand({
-      Names: [TWITTER_API_KEY_SSM_NAME, TWITTER_API_SECRET_SSM_NAME],
-      WithDecryption: true, // Important if secrets are SecureString
+      Names: [CONFIG.ssm.twitterApiKey, CONFIG.ssm.twitterApiSecret],
+      WithDecryption: true,
     });
     const { Parameters, InvalidParameters } = await ssmClient.send(command);
 
-    console.log(`Successfully fetched ${Parameters?.length || 0} SSM parameters for Twitter credentials`);
-
-    if (InvalidParameters && InvalidParameters.length > 0) {
-      console.error(
-        `Could not find the following SSM parameters: ${InvalidParameters.join(
-          ", "
-        )}. Expected: ${TWITTER_API_KEY_SSM_NAME}, ${TWITTER_API_SECRET_SSM_NAME}`
-      );
-      throw new Error(
-        `Could not find SSM parameters: ${InvalidParameters.join(", ")}`
-      );
+    if (InvalidParameters?.length > 0) {
+      throw new Error(`Could not find SSM parameters: ${InvalidParameters.join(", ")}`);
     }
 
-    if (!Parameters || Parameters.length === 0) {
-      console.error(
-        "SSM GetParameters returned no Parameters array or an empty one."
-      );
+    if (!Parameters?.length) {
       throw new Error("SSM GetParameters returned no Parameters.");
     }
 
-    const apiKeyParam = Parameters.find(
-      (p) => p.Name === TWITTER_API_KEY_SSM_NAME
-    );
-    const apiSecretParam = Parameters.find(
-      (p) => p.Name === TWITTER_API_SECRET_SSM_NAME
-    );
-
-    console.log(
-      `Twitter credentials validation: API Key found: ${!!apiKeyParam}, API Secret found: ${!!apiSecretParam}`
-    );
+    const apiKeyParam = Parameters.find(p => p.Name === CONFIG.ssm.twitterApiKey);
+    const apiSecretParam = Parameters.find(p => p.Name === CONFIG.ssm.twitterApiSecret);
 
     if (!apiKeyParam || !apiSecretParam) {
-      let missingParams = [];
-      if (!apiKeyParam) missingParams.push(TWITTER_API_KEY_SSM_NAME);
-      if (!apiSecretParam) missingParams.push(TWITTER_API_SECRET_SSM_NAME);
-      console.error(
-        `Twitter API credentials missing from SSM. Missing parameters: ${missingParams.join(", ")}`
-      );
       throw new Error("Twitter API Key or Secret not found in SSM parameters.");
     }
+
     twitterAppClientCredentials = {
       clientId: apiKeyParam.Value,
       clientSecret: apiSecretParam.Value,
@@ -387,68 +320,52 @@ async function getTwitterAppClientCredentials() {
     return twitterAppClientCredentials;
   } catch (error) {
     console.error("Error fetching Twitter App credentials from SSM:", error);
-    throw new Error( // Re-throw a generic error to avoid exposing too much detail
-      "Failed to retrieve Twitter application credentials for revocation."
-    );
+    throw new Error("Failed to retrieve Twitter application credentials.");
   }
 }
 
-// Function to get AI API Key from SSM based on provider
 async function getAiApiKey(aiProvider) {
-  if (aiProvider === "openai" && openAiApiKey) {
-    return openAiApiKey;
-  }
-  if (aiProvider === "xai" && xAiApiKey) {
-    return xAiApiKey;
-  }
-  if (aiProvider === "gemini" && geminiApiKey) {
-    return geminiApiKey;
+  // Return cached key if available
+  const cachedKeys = { openai: openAiApiKey, xai: xAiApiKey, gemini: geminiApiKey };
+  if (cachedKeys[aiProvider]) {
+    return cachedKeys[aiProvider];
   }
 
-  let ssmParamName;
-  if (aiProvider === "openai") {
-    ssmParamName = OPENAI_API_KEY_SSM_NAME;
-  } else if (aiProvider === "xai") {
-    ssmParamName = XAI_API_KEY_SSM_NAME;
-  } else if (aiProvider === "gemini") {
-    ssmParamName = GEMINI_API_KEY_SSM_NAME;
-  } else {
+  // Get SSM parameter name
+  const ssmParamNames = {
+    openai: CONFIG.ssm.openaiApiKey,
+    xai: CONFIG.ssm.xaiApiKey,
+    gemini: CONFIG.ssm.geminiApiKey
+  };
+
+  const ssmParamName = ssmParamNames[aiProvider];
+  if (!ssmParamName) {
     throw new Error(`Unsupported AI provider: ${aiProvider}`);
   }
 
   try {
-    console.log(
-      `Fetching ${aiProvider} API key from SSM. Name: ${ssmParamName}`
-    );
+    console.log(`Fetching ${aiProvider} API key from SSM`);
     const command = new GetParametersCommand({
       Names: [ssmParamName],
       WithDecryption: true,
     });
     const { Parameters, InvalidParameters } = await ssmClient.send(command);
 
-    if (InvalidParameters && InvalidParameters.length > 0) {
-      console.error(
-        `Could not find SSM parameter ${ssmParamName} (InvalidParameters): ${InvalidParameters.join(
-          ", "
-        )}`
-      );
+    if (InvalidParameters?.length > 0) {
       throw new Error(`Could not find SSM parameter: ${ssmParamName}`);
     }
-    if (!Parameters || Parameters.length === 0 || !Parameters[0].Value) {
-      console.error(`SSM GetParameters returned no value for ${ssmParamName}.`);
-      throw new Error(
-        `SSM GetParameters returned no value for ${ssmParamName}.`
-      );
+
+    if (!Parameters?.length || !Parameters[0].Value) {
+      throw new Error(`SSM GetParameters returned no value for ${ssmParamName}`);
     }
 
     const apiKey = Parameters[0].Value;
-    if (aiProvider === "openai") {
-      openAiApiKey = apiKey;
-    } else if (aiProvider === "xai") {
-      xAiApiKey = apiKey;
-    } else if (aiProvider === "gemini") {
-      geminiApiKey = apiKey;
-    }
+    
+    // Cache the key
+    if (aiProvider === "openai") openAiApiKey = apiKey;
+    else if (aiProvider === "xai") xAiApiKey = apiKey;
+    else if (aiProvider === "gemini") geminiApiKey = apiKey;
+
     console.log(`Successfully fetched and cached ${aiProvider} API key.`);
     return apiKey;
   } catch (error) {
@@ -832,6 +749,8 @@ exports.handler = async (event) => {
   console.log(`Processing ${event.requestContext?.http?.method || 'UNKNOWN'} request for action: ${JSON.parse(event.body || '{}').action || 'UNKNOWN'}`);
 
   const origin = event.headers?.origin || event.headers?.Origin;
+  console.log(`Request origin: ${origin}`);
+  console.log(`Request method: ${event.requestContext?.http?.method}`);
 
   const allowedOrigins = [
     "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
@@ -849,6 +768,7 @@ exports.handler = async (event) => {
   // Secure CORS: Only allow requests from approved extension origins
   if (origin && allowedOrigins.includes(origin)) {
     corsHeaders["Access-Control-Allow-Origin"] = origin;
+    console.log(`CORS: Allowing origin ${origin}`);
   } else if (origin) {
     console.warn(`Unauthorized origin attempted access: ${origin}`);
     return {
@@ -863,6 +783,7 @@ exports.handler = async (event) => {
   } else {
     // No origin header - likely a direct API call, allow for server-to-server communication
     corsHeaders["Access-Control-Allow-Origin"] = "*";
+    console.log(`CORS: No origin header, allowing all origins`);
   }
 
   if (
@@ -870,8 +791,10 @@ exports.handler = async (event) => {
     event.requestContext.http &&
     event.requestContext.http.method === "OPTIONS"
   ) {
+    console.log(`CORS: Handling OPTIONS preflight request from ${origin}`);
+    console.log(`CORS headers:`, corsHeaders);
     return {
-      statusCode: 204, // No Content for OPTIONS
+      statusCode: 200, // OK for OPTIONS
       headers: corsHeaders,
       body: "", // Empty body for OPTIONS
     };
@@ -978,6 +901,8 @@ exports.handler = async (event) => {
         number_requests: 0,
         is_paid: false,
         budget: MAX_GENERATION_REQUESTS,
+        video_downloads_budget: MAX_VIDEO_DOWNLOADS,
+        video_downloaded: 0,
       };
 
       if (userRecord) {
@@ -990,12 +915,19 @@ exports.handler = async (event) => {
               ? 0
               : MAX_GENERATION_REQUESTS
             : userRecord.budget;
+        // Handle video download fields for existing users
+        userItem.video_downloads_budget = userRecord.video_downloads_budget === undefined 
+          ? MAX_VIDEO_DOWNLOADS 
+          : userRecord.video_downloads_budget;
+        userItem.video_downloaded = userRecord.video_downloaded || 0;
       } else {
         console.log(`User ${twitterId} is new. Creating...`);
         userItem.created_at = now;
         userItem.number_requests = 0;
         userItem.is_paid = false;
         userItem.budget = MAX_GENERATION_REQUESTS;
+        userItem.video_downloads_budget = MAX_VIDEO_DOWNLOADS;
+        userItem.video_downloaded = 0;
       }
 
       const putItemParams = {
@@ -1017,6 +949,8 @@ exports.handler = async (event) => {
             number_requests: userItem.number_requests,
             is_paid: userItem.is_paid,
             budget: userItem.budget,
+            video_downloads_budget: userItem.video_downloads_budget,
+            video_downloaded: userItem.video_downloaded,
           },
         }),
         headers: {
@@ -1252,7 +1186,109 @@ exports.handler = async (event) => {
         };
       }
 
+      // Require authentication for video info
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Authentication required for video download features",
+            error: "missing_access_token",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Authenticate user and get current video download budget
+      let twitterUserDetails;
+      try {
+        twitterUserDetails = await getTwitterUserDetails(accessToken);
+      } catch (error) {
+        console.error("getVideoInfo: Twitter authentication failed:", error);
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Authentication failed",
+            error: error.message,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      const twitterId = twitterUserDetails.id_str;
+
+      // Get user's video download budget
+      let userRecord;
+      try {
+        const getUserCommand = new GetCommand({
+          TableName: USERS_TABLE_NAME,
+          Key: { twitter_id: twitterId },
+        });
+        const userResponse = await ddbDocClient.send(getUserCommand);
+        userRecord = userResponse.Item;
+      } catch (error) {
+        console.error("getVideoInfo: Error fetching user data:", error);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Database error",
+            error: error.message,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      if (!userRecord) {
+        return {
+          statusCode: 404,
+          body: JSON.stringify({
+            message: "User not found",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Check video download budget
+      const videoBudget = userRecord.video_downloads_budget || 0;
+      const videoDownloaded = userRecord.video_downloaded || 0;
+      const videoRemainingDownloads = Math.max(0, videoBudget - videoDownloaded);
+
+      if (videoRemainingDownloads <= 0) {
+        return {
+          statusCode: 403,
+          body: JSON.stringify({
+            message: "Video download limit reached",
+            error: "download_limit_exceeded",
+            video_downloads_budget: videoBudget,
+            video_downloaded: videoDownloaded,
+            video_remaining_downloads: videoRemainingDownloads,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
       const videoInfo = await getVideoInfo(videoUrl);
+
+      // Include budget info in response
+      videoInfo.user_video_budget = {
+        video_downloads_budget: videoBudget,
+        video_downloaded: videoDownloaded,
+        video_remaining_downloads: videoRemainingDownloads,
+      };
 
       return {
         statusCode: 200,
@@ -1278,7 +1314,136 @@ exports.handler = async (event) => {
         };
       }
 
+      // Require authentication for video downloads
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Authentication required for video downloads",
+            error: "missing_access_token",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Authenticate user and get current video download budget
+      let twitterUserDetails;
+      try {
+        twitterUserDetails = await getTwitterUserDetails(accessToken);
+      } catch (error) {
+        console.error("downloadVideo: Twitter authentication failed:", error);
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Authentication failed",
+            error: error.message,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      const twitterId = twitterUserDetails.id_str;
+
+      // Get user's current video download budget and increment it
+      let userRecord;
+      try {
+        const getUserCommand = new GetCommand({
+          TableName: USERS_TABLE_NAME,
+          Key: { twitter_id: twitterId },
+        });
+        const userResponse = await ddbDocClient.send(getUserCommand);
+        userRecord = userResponse.Item;
+      } catch (error) {
+        console.error("downloadVideo: Error fetching user data:", error);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Database error",
+            error: error.message,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      if (!userRecord) {
+        return {
+          statusCode: 404,
+          body: JSON.stringify({
+            message: "User not found",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Check video download budget
+      const videoBudget = userRecord.video_downloads_budget || 0;
+      const videoDownloaded = userRecord.video_downloaded || 0;
+      const videoRemainingDownloads = Math.max(0, videoBudget - videoDownloaded);
+
+      if (videoRemainingDownloads <= 0) {
+        return {
+          statusCode: 403,
+          body: JSON.stringify({
+            message: "Video download limit reached",
+            error: "download_limit_exceeded",
+            video_downloads_budget: videoBudget,
+            video_downloaded: videoDownloaded,
+            video_remaining_downloads: videoRemainingDownloads,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Increment the video download count BEFORE attempting download
+      const newVideoDownloaded = videoDownloaded + 1;
+      try {
+        const updateCommand = new UpdateCommand({
+          TableName: USERS_TABLE_NAME,
+          Key: { twitter_id: twitterId },
+          UpdateExpression: "SET video_downloaded = :newCount",
+          ExpressionAttributeValues: {
+            ":newCount": newVideoDownloaded,
+          },
+        });
+        await ddbDocClient.send(updateCommand);
+      } catch (error) {
+        console.error("downloadVideo: Error updating video download count:", error);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Database error while updating download count",
+            error: error.message,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
       const downloadResult = await downloadVideo(videoUrl, formatId);
+
+      // Include updated budget info in response
+      downloadResult.user_video_budget = {
+        video_downloads_budget: videoBudget,
+        video_downloaded: newVideoDownloaded,
+        video_remaining_downloads: Math.max(0, videoBudget - newVideoDownloaded),
+      };
 
       return {
         statusCode: 200,
@@ -1315,6 +1480,99 @@ exports.handler = async (event) => {
           ...corsHeaders,
         },
       };
+    } else if (action === "getUserInfo") {
+      // Get user info from DynamoDB using access token to identify user
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          body: JSON.stringify({
+            message: "Unauthorized: Missing Twitter access token.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Get Twitter user ID from the access token
+      const twitterUser = await getTwitterUserDetails(accessToken);
+      const twitterId = twitterUser.id_str;
+
+      if (!twitterId) {
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Failed to get user details from Twitter.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
+
+      // Get user record from DynamoDB
+      const getItemParams = {
+        TableName: USERS_TABLE_NAME,
+        Key: { twitter_id: twitterId },
+      };
+
+      try {
+        const { Item: userRecord } = await ddbDocClient.send(new GetCommand(getItemParams));
+        
+        if (!userRecord) {
+          return {
+            statusCode: 404,
+            body: JSON.stringify({
+              message: "User not found in database.",
+            }),
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders,
+            },
+          };
+        }
+
+        // Return user info with all fields including video download fields
+        const userData = {
+          id_str: userRecord.twitter_id,
+          screen_name: userRecord.twitter_username,
+          name: userRecord.twitter_name,
+          profile_image_url_https: userRecord.twitter_profile_image_url,
+          number_requests: userRecord.number_requests || 0,
+          is_paid: userRecord.is_paid || false,
+          budget: userRecord.budget || MAX_GENERATION_REQUESTS,
+          video_downloads_budget: userRecord.video_downloads_budget || MAX_VIDEO_DOWNLOADS,
+          video_downloaded: userRecord.video_downloaded || 0,
+        };
+
+        console.log(`[getUserInfo] Returning user data for ${twitterId}`);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            message: "User info retrieved successfully.",
+            userData: userData,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      } catch (dbError) {
+        console.error("DynamoDB GetItem error:", dbError);
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            message: "Database error while retrieving user info.",
+          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders,
+          },
+        };
+      }
     } else {
       return {
         statusCode: 400,

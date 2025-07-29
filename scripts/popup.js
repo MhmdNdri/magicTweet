@@ -1,5 +1,3 @@
-// This file is intentionally left blank as its functionality
-// for theme toggling is now handled by scripts/theme.js
 document.addEventListener("DOMContentLoaded", () => {
   const loginButton = document.getElementById("loginWithTwitterButton");
   const authSection = loginButton?.closest(".auth-section"); // Get the parent auth section
@@ -90,9 +88,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestionsRemainingCount = document.getElementById(
       "suggestionsRemainingCount"
     );
+    const videoDownloadsBadge = document.getElementById(
+      "videoDownloadsBadge"
+    );
+    const videoDownloadsRemainingCount = document.getElementById(
+      "videoDownloadsRemainingCount"
+    );
 
     if (isLoggedIn && userInfo && userInfo.username) {
       showUIState("loggedIn");
+
+      // Debug: Log user info to check video budget fields
+      console.log("[popup.js] User info received:", {
+        video_downloads_budget: userInfo.video_downloads_budget,
+        video_downloaded: userInfo.video_downloaded,
+        budget: userInfo.budget,
+        number_requests: userInfo.number_requests
+      });
 
       // Handle profile image
       if (
@@ -163,6 +175,41 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       }
 
+      // Update video downloads badge
+      console.log("[popup.js] Checking video downloads badge conditions:", {
+        videoDownloadsBadge: !!videoDownloadsBadge,
+        videoDownloadsRemainingCount: !!videoDownloadsRemainingCount,
+        video_downloads_budget: userInfo.video_downloads_budget,
+        video_downloaded: userInfo.video_downloaded,
+        budget_undefined: userInfo.video_downloads_budget === undefined,
+        downloaded_undefined: userInfo.video_downloaded === undefined
+      });
+      
+      if (
+        videoDownloadsBadge &&
+        videoDownloadsRemainingCount &&
+        userInfo.video_downloads_budget !== undefined &&
+        userInfo.video_downloaded !== undefined
+      ) {
+        const videoBudget = Number(userInfo.video_downloads_budget) || 0;
+        const videoDownloaded = Number(userInfo.video_downloaded) || 0;
+        const videoRemaining = Math.max(0, videoBudget - videoDownloaded);
+
+        console.log("[popup.js] Showing video downloads badge:", {
+          videoBudget,
+          videoDownloaded,
+          videoRemaining
+        });
+
+        videoDownloadsRemainingCount.textContent = videoRemaining;
+        videoDownloadsBadge.style.display = "flex";
+      } else if (videoDownloadsBadge) {
+        videoDownloadsBadge.style.display = "none";
+        console.log(
+          "[popup.js] Hiding video downloads badge because video budget info is incomplete."
+        );
+      }
+
       // Legacy elements handling for backward compatibility
       if (loggedInMessageElement) {
         const username = userInfo.username;
@@ -188,6 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (userDisplayName) userDisplayName.textContent = "User";
       if (userUsername) userUsername.textContent = "";
       if (suggestionsCountBadge) suggestionsCountBadge.style.display = "none";
+      if (videoDownloadsBadge) videoDownloadsBadge.style.display = "none";
 
       // Legacy elements
       if (loggedInMessageElement) {
@@ -205,6 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (userProfileImage) userProfileImage.style.display = "none";
       if (userAvatarFallback) userAvatarFallback.style.display = "none";
       if (suggestionsCountBadge) suggestionsCountBadge.style.display = "none";
+      if (videoDownloadsBadge) videoDownloadsBadge.style.display = "none";
       if (suggestionsCountMessageElement)
         suggestionsCountMessageElement.style.display = "none";
     }
