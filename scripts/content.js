@@ -36,6 +36,8 @@ const VIDEO_DOWNLOAD_MODAL_ID = `${EXT_NAMESPACE}-video-download-modal`;
 
 // These keys will be sent to the API. Their corresponding English messages will be used in the prompt.
 const API_TONE_MESSAGE_KEYS = {
+  CORRECTION: "styleCorrection",
+  PARAPHRASE: "styleParaphrase",
   SARCASM: "styleSarcastic",
   PLAYFUL: "tonePlayfulFunny",
   ROMANTIC: "toneRomanticSoft",
@@ -47,6 +49,9 @@ const API_TONE_MESSAGE_KEYS = {
   INSPIRATIONAL: "toneInspirationalMotivational",
   ROAST: "styleRoast",
 };
+
+// Make it globally available for ui.js
+window.API_TONE_MESSAGE_KEYS = API_TONE_MESSAGE_KEYS;
 
 const AI_PROVIDER_KEY = "magic-tweet-ai-provider"; // Added for consistency
 
@@ -641,6 +646,14 @@ function addToneButtonListeners(tonePanel) {
 function populateToneOptions() {
   // TONE_OPTIONS stores the *localized display text* for the buttons
   window.MagicTweetExtension.TONE_OPTIONS = {
+    CORRECTION: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.CORRECTION,
+      "Correction"
+    ),
+    PARAPHRASE: getLocalizedString(
+      API_TONE_MESSAGE_KEYS.PARAPHRASE,
+      "Paraphrase"
+    ),
     SARCASM: getLocalizedString(API_TONE_MESSAGE_KEYS.SARCASM, "Sarcastic"),
     PLAYFUL: getLocalizedString(API_TONE_MESSAGE_KEYS.PLAYFUL, "Playful/Funny"),
     ROMANTIC: getLocalizedString(
@@ -1545,7 +1558,6 @@ function displaySuggestions(suggestions, container) {
                 button.style.backgroundColor = "#1DA1F2"; // Original blue color
                 // button.style.opacity = "0.7"; // Remove opacity changes
               }, 2000);
-
             } catch (err) {
               console.error("Failed to copy text:", err);
               // Change background color and icon on failure

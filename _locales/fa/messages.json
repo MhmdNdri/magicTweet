@@ -91,6 +91,14 @@
     "message": "مسخره کردن",
     "description": "Style option for roasting tweets"
   },
+  "styleCorrection": {
+    "message": "اصلاح",
+    "description": "گزینه سبک برای اصلاح گرامر و املای متن"
+  },
+  "styleParaphrase": {
+    "message": "بازنویسی",
+    "description": "گزینه سبک برای بازنویسی متن بدون لحن خاص"
+  },
   "tonePlayfulFunny": {
     "message": "شوخ و بامزه",
     "description": "گزینه لحن: بازیگوش و بامزه"

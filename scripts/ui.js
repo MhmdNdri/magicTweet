@@ -329,6 +329,8 @@ function createToneSelectionPanel() {
     (contentContainer) => {
       // Define tone icons mapping with inline SVG
       const TONE_ICONS = {
+        styleCorrection: "✏️",
+        styleParaphrase: "🔄",
         styleSarcastic: "😏",
         tonePlayfulFunny: "😂",
         toneRomanticSoft: "❤️",
@@ -343,8 +345,25 @@ function createToneSelectionPanel() {
 
       let toneButtonsHtml = '<div class="magic-tweet-tone-grid">';
 
-      for (const internalKey in API_TONE_MESSAGE_KEYS) {
-        const messageKey = API_TONE_MESSAGE_KEYS[internalKey];
+      // Check if API_TONE_MESSAGE_KEYS is available (from content.js)
+      // If not, use a fallback or wait for it to be loaded
+      const toneKeys = window.API_TONE_MESSAGE_KEYS || {
+        CORRECTION: "styleCorrection",
+        PARAPHRASE: "styleParaphrase",
+        SARCASM: "styleSarcastic",
+        PLAYFUL: "tonePlayfulFunny",
+        ROMANTIC: "toneRomanticSoft",
+        MELANCHOLIC: "toneMelancholicPoetic",
+        HOPEFUL: "toneHopefulUplifting",
+        CYNICAL: "toneCynicalDarkHumor",
+        DRAMATIC: "toneOverdramaticTheatrical",
+        MINIMALIST: "toneMinimalistDry",
+        INSPIRATIONAL: "toneInspirationalMotivational",
+        ROAST: "styleRoast",
+      };
+
+      for (const internalKey in toneKeys) {
+        const messageKey = toneKeys[internalKey];
         const localizedText = getLocalizedString(messageKey);
         const icon =
           TONE_ICONS[messageKey] ||

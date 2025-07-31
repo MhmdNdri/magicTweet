@@ -91,6 +91,14 @@
     "message": "Roast",
     "description": "Style option for roasting tweets"
   },
+  "styleCorrection": {
+    "message": "Correction",
+    "description": "Style option for correcting text grammar and spelling"
+  },
+  "styleParaphrase": {
+    "message": "Paraphrase",
+    "description": "Style option for paraphrasing text without specific tone"
+  },
   "tonePlayfulFunny": {
     "message": "Playful & Funny",
     "description": "Tone option: Playful & Funny"

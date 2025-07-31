@@ -618,6 +618,31 @@ async function performAiSuggestionRequest(
     // Special handling for roast tone
     systemMessage = `You are a witty comedian. Generate exactly 5 roast responses that are clever and humorous but not mean-spirited. Each response should be on a new line with no numbering, bullet points, explanations, or extra text.`;
     userMessage = `Create 5 playful roast responses to this tweet IN THE SAME LANGUAGE AS THE ORIGINAL TWEET. Make them clever and funny. Provide only the roast responses, one per line, no explanations. Original Tweet: "${tweetText}"`;
+  } else if (toneForApi === "Correction") {
+    // Special handling for correction - only returns 1 corrected version
+    systemMessage = `You are a spell-checker. STRICT RULES - FOLLOW EXACTLY:
+    
+    ✅ ONLY FIX: spelling mistakes, missing punctuation, obvious typos
+    ❌ NEVER: add words, remove words, change word order, rephrase, improve style, censor content
+    
+    EXAMPLES:
+    - "recieve" → "receive" (fix spelling)
+    - "its good" → "it's good" (add missing apostrophe)  
+    - "your welcome" → "you're welcome" (fix grammar)
+    
+    FORBIDDEN CHANGES:
+    - Don't add articles (a, an, the)
+    - Don't change sentence structure
+    - Don't remove slang or informal language
+    - Don't censor profanity or controversial words
+    - Don't improve clarity or style
+    
+    Return ONLY the corrected text, nothing else.`;
+    userMessage = `Apply minimal corrections to fix only obvious spelling/grammar errors. Do not rephrase or add/remove any words. Text: "${tweetText}"`;
+  } else if (toneForApi === "Paraphrase") {
+    // Special handling for paraphrasing - generates 5 paraphrased versions
+    systemMessage = `You are a professional writer. Generate exactly 5 paraphrased versions of the given text. Each version should maintain the original meaning but use different words and sentence structures. Each paraphrase should be on a new line with no numbering, bullet points, explanations, or extra text.`;
+    userMessage = `Paraphrase the following text IN THE SAME LANGUAGE AS THE ORIGINAL TWEET. Provide 5 different versions that maintain the same meaning but use different wording. Provide only the paraphrases, one per line, no explanations. Original Tweet: "${tweetText}"`;
   } else {
     // Standard handling for other tones
     systemMessage = `You are an AI assistant. Generate exactly 5 alternative tweet suggestions. Each suggestion should be concise, engaging, and output on a new line. Do not use any numbering or bullet points.`;

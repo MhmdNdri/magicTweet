@@ -1098,13 +1098,21 @@ function parseSuggestions(content, tone) {
 
   console.log("Extracted variations:", variations);
 
-  // Ensure we have exactly 5 variations
-  while (variations.length < 5) {
-    variations.push("");
+  // Special handling for Correction tone - expect only 1 result
+  if (tone === "Correction") {
+    // For correction, we expect only one corrected version
+    // If there's no variation, use the original content as fallback
+    const correctedText = variations.length > 0 ? variations[0] : content.trim();
+    suggestions[tone] = [correctedText]; // Store as single-item array
+  } else {
+    // Standard handling for other tones - ensure we have exactly 5 variations
+    while (variations.length < 5) {
+      variations.push("");
+    }
+    variations.splice(5); // Trim to 5 if more
+    suggestions[tone] = variations;
   }
-  variations.splice(5); // Trim to 5 if more
 
-  suggestions[tone] = variations;
   console.log("Final suggestions object:", suggestions);
   return suggestions;
 }
