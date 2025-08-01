@@ -1,0 +1,16 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetParameters",
+      "Resource": [
+        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/my-extension/twitter/api-key",
+        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/my-extension/twitter/api-key-secret",
+        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/my-extension/openai/api-key",
+        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/my-extension/xai/api-key",
+        "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/my-extension/gemini/api-key"
+      ]
+    }
+  ]
+}

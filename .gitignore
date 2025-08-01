@@ -3,6 +3,11 @@
 .env.local
 .env.*.local
 
+# AWS Policies and sensitive configs
+*Policy.json
+*policy.json
+MyExtensionLambdaSSMGeneralKeysPolicy.json
+
 # Dependencies
 node_modules/
 
