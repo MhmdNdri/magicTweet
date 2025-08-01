@@ -31,6 +31,38 @@
     "message": "Enhance your social media presence with AI-powered tone suggestions that make your tweets stand out.",
     "description": "Welcome description paragraph in the popup."
   },
+  "aiFeatureHeading": {
+    "message": "🤖 AI-Powered Suggestions",
+    "description": "Heading for AI features section in welcome"
+  },
+  "videoFeatureHeading": {
+    "message": "📥 Video Downloads",
+    "description": "Heading for video features section in welcome"
+  },
+  "aiFeature1": {
+    "message": "Smart text correction and paraphrasing",
+    "description": "AI feature description 1"
+  },
+  "aiFeature2": {
+    "message": "Multiple tone styles available",
+    "description": "AI feature description 2"
+  },
+  "aiFeature3": {
+    "message": "Multi-language support",
+    "description": "AI feature description 3"
+  },
+  "videoFeature1": {
+    "message": "Smart video detection on timeline",
+    "description": "Video feature description 1"
+  },
+  "videoFeature2": {
+    "message": "Quick download with quality selection",
+    "description": "Video feature description 2"
+  },
+  "videoFeature3": {
+    "message": "Multiple video qualities and formats",
+    "description": "Video feature description 3"
+  },
   "howItWorksHeading": {
     "message": "How It Works",
     "description": "Heading for the 'How it works' section."
