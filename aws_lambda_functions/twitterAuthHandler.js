@@ -780,6 +780,7 @@ exports.handler = async (event) => {
   const allowedOrigins = [
     "chrome-extension://dbhahgppmankilhelmgaphlebkndghhb",
     "chrome-extension://llmcceanlbdpnidpdmjgfbgmhhnkjlmh",
+    "chrome-extension://nmddgmiddifepobdhibipaoehhnkdfmb", // Current extension ID
     "moz-extension://16d635c5-456a-456b-833a-75e4d2b2748a",
     // Add any other production extension IDs here
   ];
@@ -803,6 +804,7 @@ exports.handler = async (event) => {
       }),
       headers: {
         "Content-Type": "application/json",
+        ...corsHeaders, // Include CORS headers even for 403 responses
       },
     };
   } else {
