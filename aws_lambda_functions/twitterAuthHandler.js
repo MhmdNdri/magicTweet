@@ -1,7 +1,7 @@
 /**
  * Magic Tweet Extension - Twitter Authentication Handler
  * AWS Lambda Function for handling Twitter OAuth, AI suggestions, and video downloads
- * 
+ *
  * Version: v2.2.0_CLEAN
  * Author: MhmdNdri
  */
@@ -24,33 +24,35 @@ const LAMBDA_CODE_VERSION = "v2.2.0_CLEAN";
 const CONFIG = {
   region: process.env.AWS_REGION || "eu-west-2",
   tables: {
-    users: "Users"
+    users: "Users",
   },
   ssm: {
     twitterApiKey: "/my-extension/twitter/api-key",
     twitterApiSecret: "/my-extension/twitter/api-key-secret",
     openaiApiKey: "/my-extension/openai/api-key",
     xaiApiKey: "/my-extension/xai/api-key",
-    geminiApiKey: "/my-extension/gemini/api-key"
+    geminiApiKey: "/my-extension/gemini/api-key",
   },
   limits: {
     maxGenerationRequests: 150,
-    maxVideoDownloads: 50
+    maxVideoDownloads: 50,
   },
   urls: {
     twitterToken: "https://api.twitter.com/2/oauth2/token",
     openai: "https://api.openai.com/v1/chat/completions",
     xai: "https://api.x.ai/v1/chat/completions",
-    videoService: process.env.VIDEO_DOWNLOAD_SERVICE_URL || "https://web-production-5536a.up.railway.app"
+    videoService:
+      process.env.VIDEO_DOWNLOAD_SERVICE_URL ||
+      "https://web-production-5536a.up.railway.app",
   },
   cache: {
     duration: 5 * 60 * 1000, // 5 minutes
-    maxSize: 100
+    maxSize: 100,
   },
   rateLimit: {
     concurrentLimit: 3,
-    maxRetries: 3
-  }
+    maxRetries: 3,
+  },
 };
 
 // === CONSTANTS ===
@@ -94,7 +96,9 @@ function calculateBackoffDelay(attempt) {
 async function waitForRateLimit() {
   if (rateLimitResetTime && Date.now() < rateLimitResetTime) {
     const waitTime = rateLimitResetTime - Date.now() + 1000;
-    console.log(`Rate limit active. Waiting ${waitTime}ms before next request.`);
+    console.log(
+      `Rate limit active. Waiting ${waitTime}ms before next request.`
+    );
     await new Promise((resolve) => setTimeout(resolve, waitTime));
   }
 }
@@ -120,7 +124,7 @@ async function callVideoDownloadService(endpoint, data) {
 
     const req = protocol.request(options, (res) => {
       let responseBody = "";
-      res.on("data", (chunk) => responseBody += chunk);
+      res.on("data", (chunk) => (responseBody += chunk));
       res.on("end", () => {
         try {
           resolve(JSON.parse(responseBody));
@@ -130,7 +134,9 @@ async function callVideoDownloadService(endpoint, data) {
       });
     });
 
-    req.on("error", (error) => reject(new Error(`Request failed: ${error.message}`)));
+    req.on("error", (error) =>
+      reject(new Error(`Request failed: ${error.message}`))
+    );
     req.on("timeout", () => {
       req.destroy();
       reject(new Error("Request timeout"));
@@ -141,25 +147,35 @@ async function callVideoDownloadService(endpoint, data) {
   });
 }
 
-const createVideoServiceFunction = (endpoint, logMessage) => async (videoUrl, formatId = null) => {
-  try {
-    console.log(`${logMessage}: ${videoUrl}${formatId ? `, format: ${formatId}` : ''}`);
-    const data = { url: videoUrl };
-    if (formatId) data.format_id = formatId;
-    
-    return await callVideoDownloadService(endpoint, data);
-  } catch (error) {
-    console.error(`Error in ${logMessage.toLowerCase()}:`, error);
-    return {
-      success: false,
-      error: "Service unavailable",
-      message: "Video download service is currently unavailable",
-    };
-  }
-};
+const createVideoServiceFunction =
+  (endpoint, logMessage) =>
+  async (videoUrl, formatId = null) => {
+    try {
+      console.log(
+        `${logMessage}: ${videoUrl}${formatId ? `, format: ${formatId}` : ""}`
+      );
+      const data = { url: videoUrl };
+      if (formatId) data.format_id = formatId;
 
-const getVideoInfo = createVideoServiceFunction("/video_info", "Getting video info");
-const downloadVideo = createVideoServiceFunction("/download", "Starting download");
+      return await callVideoDownloadService(endpoint, data);
+    } catch (error) {
+      console.error(`Error in ${logMessage.toLowerCase()}:`, error);
+      return {
+        success: false,
+        error: "Service unavailable",
+        message: "Video download service is currently unavailable",
+      };
+    }
+  };
+
+const getVideoInfo = createVideoServiceFunction(
+  "/video_info",
+  "Getting video info"
+);
+const downloadVideo = createVideoServiceFunction(
+  "/download",
+  "Starting download"
+);
 
 async function getDownloadProgress(progressId) {
   try {
@@ -255,7 +271,8 @@ function setCachedUserAuth(accessToken, userDetails) {
 function handleTwitterApiError(error, context = "Twitter API call") {
   console.error(`${context} error:`, error);
 
-  const statusCode = error.code || error.status || error.response?.status || null;
+  const statusCode =
+    error.code || error.status || error.response?.status || null;
 
   // Handle rate limiting
   if (statusCode === 429) {
@@ -265,12 +282,18 @@ function handleTwitterApiError(error, context = "Twitter API call") {
     const resetTime = error.response?.headers?.["x-rate-limit-reset"];
     if (resetTime) {
       rateLimitResetTime = parseInt(resetTime) * 1000;
-      console.log(`Rate limit reset time set to: ${new Date(rateLimitResetTime)}`);
+      console.log(
+        `Rate limit reset time set to: ${new Date(rateLimitResetTime)}`
+      );
     } else {
       // Estimate based on consecutive errors
       const backoffDelay = calculateBackoffDelay(consecutiveErrors);
       rateLimitResetTime = Date.now() + backoffDelay;
-      console.log(`Estimated rate limit reset time: ${new Date(rateLimitResetTime)} (${backoffDelay}ms)`);
+      console.log(
+        `Estimated rate limit reset time: ${new Date(
+          rateLimitResetTime
+        )} (${backoffDelay}ms)`
+      );
     }
   } else {
     consecutiveErrors = 0;
@@ -298,15 +321,21 @@ async function getTwitterAppClientCredentials() {
     const { Parameters, InvalidParameters } = await ssmClient.send(command);
 
     if (InvalidParameters?.length > 0) {
-      throw new Error(`Could not find SSM parameters: ${InvalidParameters.join(", ")}`);
+      throw new Error(
+        `Could not find SSM parameters: ${InvalidParameters.join(", ")}`
+      );
     }
 
     if (!Parameters?.length) {
       throw new Error("SSM GetParameters returned no Parameters.");
     }
 
-    const apiKeyParam = Parameters.find(p => p.Name === CONFIG.ssm.twitterApiKey);
-    const apiSecretParam = Parameters.find(p => p.Name === CONFIG.ssm.twitterApiSecret);
+    const apiKeyParam = Parameters.find(
+      (p) => p.Name === CONFIG.ssm.twitterApiKey
+    );
+    const apiSecretParam = Parameters.find(
+      (p) => p.Name === CONFIG.ssm.twitterApiSecret
+    );
 
     if (!apiKeyParam || !apiSecretParam) {
       throw new Error("Twitter API Key or Secret not found in SSM parameters.");
@@ -326,7 +355,11 @@ async function getTwitterAppClientCredentials() {
 
 async function getAiApiKey(aiProvider) {
   // Return cached key if available
-  const cachedKeys = { openai: openAiApiKey, xai: xAiApiKey, gemini: geminiApiKey };
+  const cachedKeys = {
+    openai: openAiApiKey,
+    xai: xAiApiKey,
+    gemini: geminiApiKey,
+  };
   if (cachedKeys[aiProvider]) {
     return cachedKeys[aiProvider];
   }
@@ -335,7 +368,7 @@ async function getAiApiKey(aiProvider) {
   const ssmParamNames = {
     openai: CONFIG.ssm.openaiApiKey,
     xai: CONFIG.ssm.xaiApiKey,
-    gemini: CONFIG.ssm.geminiApiKey
+    gemini: CONFIG.ssm.geminiApiKey,
   };
 
   const ssmParamName = ssmParamNames[aiProvider];
@@ -356,11 +389,13 @@ async function getAiApiKey(aiProvider) {
     }
 
     if (!Parameters?.length || !Parameters[0].Value) {
-      throw new Error(`SSM GetParameters returned no value for ${ssmParamName}`);
+      throw new Error(
+        `SSM GetParameters returned no value for ${ssmParamName}`
+      );
     }
 
     const apiKey = Parameters[0].Value;
-    
+
     // Cache the key
     if (aiProvider === "openai") openAiApiKey = apiKey;
     else if (aiProvider === "xai") xAiApiKey = apiKey;
@@ -651,7 +686,7 @@ async function performAiSuggestionRequest(
 
   if (aiProvider === "openai") {
     apiUrl = OPENAI_CHAT_COMPLETIONS_URL;
-    model = "gpt-4.1-nano";
+    model = "gpt-5-nano";
     requestBody = {
       model: model,
       messages: [
@@ -708,11 +743,38 @@ async function performAiSuggestionRequest(
     `Sending request to ${aiProvider} API. URL: ${apiUrl}, Model: ${model}`
   );
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: headers,
-    body: JSON.stringify(requestBody),
-  });
+  // Add provider-level timeout so we can surface a 504 instead of Lambda hard timeout
+  const controller = new AbortController();
+  const timeoutMs = parseInt(
+    process.env.OPENAI_TIMEOUT_MS || process.env.PROVIDER_TIMEOUT_MS || "25000",
+    10
+  );
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(apiUrl, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (
+      err &&
+      (err.name === "AbortError" ||
+        /aborted|timeout/i.test(String(err.message)))
+    ) {
+      const timeoutError = new Error(
+        `${aiProvider} API request timed out after ${timeoutMs}ms`
+      );
+      timeoutError.httpStatus = 504;
+      timeoutError.provider = aiProvider;
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   console.log(`${aiProvider} API status: ${response.status}`);
   const responseBodyText = await response.text();
@@ -720,9 +782,14 @@ async function performAiSuggestionRequest(
 
   if (!response.ok) {
     console.error(`${aiProvider} API error response: ${responseBodyText}`);
-    throw new Error(
+    const providerError = new Error(
       `${aiProvider} API request failed with status ${response.status}: ${responseBodyText}`
     );
+    // Preserve upstream HTTP status so caller can pass it through (e.g., 400/401/403/429/5xx)
+    providerError.httpStatus = response.status;
+    providerError.provider = aiProvider;
+    providerError.providerResponse = responseBodyText;
+    throw providerError;
   }
 
   try {
@@ -763,15 +830,24 @@ async function performAiSuggestionRequest(
       `Error parsing ${aiProvider} API response or accessing content:`,
       e
     );
-    throw new Error(
+    const parseError = new Error(
       `Error parsing ${aiProvider} API response. Raw text was: ${responseBodyText}`
     );
+    // Treat parse failures as Bad Gateway to indicate upstream format issue
+    parseError.httpStatus = 502;
+    parseError.provider = aiProvider;
+    parseError.providerResponse = responseBodyText;
+    throw parseError;
   }
 }
 
 exports.handler = async (event) => {
   console.log(`Executing Lambda version: ${LAMBDA_CODE_VERSION}`);
-  console.log(`Processing ${event.requestContext?.http?.method || 'UNKNOWN'} request for action: ${JSON.parse(event.body || '{}').action || 'UNKNOWN'}`);
+  console.log(
+    `Processing ${
+      event.requestContext?.http?.method || "UNKNOWN"
+    } request for action: ${JSON.parse(event.body || "{}").action || "UNKNOWN"}`
+  );
 
   const origin = event.headers?.origin || event.headers?.Origin;
   console.log(`Request origin: ${origin}`);
@@ -799,8 +875,8 @@ exports.handler = async (event) => {
     console.warn(`Unauthorized origin attempted access: ${origin}`);
     return {
       statusCode: 403,
-      body: JSON.stringify({ 
-        message: "Access denied: Origin not authorized" 
+      body: JSON.stringify({
+        message: "Access denied: Origin not authorized",
       }),
       headers: {
         "Content-Type": "application/json",
@@ -943,9 +1019,10 @@ exports.handler = async (event) => {
               : MAX_GENERATION_REQUESTS
             : userRecord.budget;
         // Handle video download fields for existing users
-        userItem.video_downloads_budget = userRecord.video_downloads_budget === undefined 
-          ? MAX_VIDEO_DOWNLOADS 
-          : userRecord.video_downloads_budget;
+        userItem.video_downloads_budget =
+          userRecord.video_downloads_budget === undefined
+            ? MAX_VIDEO_DOWNLOADS
+            : userRecord.video_downloads_budget;
         userItem.video_downloaded = userRecord.video_downloaded || 0;
       } else {
         console.log(`User ${twitterId} is new. Creating...`);
@@ -1289,7 +1366,10 @@ exports.handler = async (event) => {
       // Check video download budget
       const videoBudget = userRecord.video_downloads_budget || 0;
       const videoDownloaded = userRecord.video_downloaded || 0;
-      const videoRemainingDownloads = Math.max(0, videoBudget - videoDownloaded);
+      const videoRemainingDownloads = Math.max(
+        0,
+        videoBudget - videoDownloaded
+      );
 
       if (videoRemainingDownloads <= 0) {
         return {
@@ -1417,7 +1497,10 @@ exports.handler = async (event) => {
       // Check video download budget
       const videoBudget = userRecord.video_downloads_budget || 0;
       const videoDownloaded = userRecord.video_downloaded || 0;
-      const videoRemainingDownloads = Math.max(0, videoBudget - videoDownloaded);
+      const videoRemainingDownloads = Math.max(
+        0,
+        videoBudget - videoDownloaded
+      );
 
       if (videoRemainingDownloads <= 0) {
         return {
@@ -1449,7 +1532,10 @@ exports.handler = async (event) => {
         });
         await ddbDocClient.send(updateCommand);
       } catch (error) {
-        console.error("downloadVideo: Error updating video download count:", error);
+        console.error(
+          "downloadVideo: Error updating video download count:",
+          error
+        );
         return {
           statusCode: 500,
           body: JSON.stringify({
@@ -1469,7 +1555,10 @@ exports.handler = async (event) => {
       downloadResult.user_video_budget = {
         video_downloads_budget: videoBudget,
         video_downloaded: newVideoDownloaded,
-        video_remaining_downloads: Math.max(0, videoBudget - newVideoDownloaded),
+        video_remaining_downloads: Math.max(
+          0,
+          videoBudget - newVideoDownloaded
+        ),
       };
 
       return {
@@ -1546,8 +1635,10 @@ exports.handler = async (event) => {
       };
 
       try {
-        const { Item: userRecord } = await ddbDocClient.send(new GetCommand(getItemParams));
-        
+        const { Item: userRecord } = await ddbDocClient.send(
+          new GetCommand(getItemParams)
+        );
+
         if (!userRecord) {
           return {
             statusCode: 404,
@@ -1570,7 +1661,8 @@ exports.handler = async (event) => {
           number_requests: userRecord.number_requests || 0,
           is_paid: userRecord.is_paid || false,
           budget: userRecord.budget || MAX_GENERATION_REQUESTS,
-          video_downloads_budget: userRecord.video_downloads_budget || MAX_VIDEO_DOWNLOADS,
+          video_downloads_budget:
+            userRecord.video_downloads_budget || MAX_VIDEO_DOWNLOADS,
           video_downloaded: userRecord.video_downloaded || 0,
         };
 
@@ -1614,6 +1706,20 @@ exports.handler = async (event) => {
     let statusCode = 500;
     let message = "Internal server error";
 
+    // Preserve upstream provider error status when available
+    if (error && error.httpStatus) {
+      statusCode = error.httpStatus;
+      message = error.message || message;
+      return {
+        statusCode,
+        body: JSON.stringify({ message }),
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      };
+    }
+
     if (
       error.message &&
       error.message.startsWith("Failed to revoke token on backend:")
@@ -1655,8 +1761,9 @@ exports.handler = async (event) => {
 
     if (action === "generateAiSuggestions") {
       console.error(`Error in generateAiSuggestions action: ${error.message}`);
+      const upstreamStatus = error.httpStatus || statusCode;
       return {
-        statusCode: 500,
+        statusCode: upstreamStatus,
         body: JSON.stringify({
           message:
             error.message ||
